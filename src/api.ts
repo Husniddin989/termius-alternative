@@ -33,6 +33,7 @@ export interface Settings {
   aiModel: string;
   aiIncludeOutput: boolean;
   librarySeeded: boolean;
+  theme: string;
 }
 
 export interface AiSuggestion {

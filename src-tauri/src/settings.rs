@@ -21,6 +21,8 @@ pub struct Settings {
     /// The built-in snippet library has been added once (so deleting
     /// library snippets doesn't bring them back on the next start).
     pub library_seeded: bool,
+    /// Colour theme id (see src/themes.ts), or "auto" to follow the OS.
+    pub theme: String,
 }
 
 impl Default for Settings {
@@ -32,6 +34,7 @@ impl Default for Settings {
             ai_model: DEFAULT_AI_MODEL.into(),
             ai_include_output: false,
             library_seeded: false,
+            theme: "midnight".into(),
         }
     }
 }
@@ -65,5 +68,6 @@ mod tests {
         assert_eq!(s.ai_provider, "ollama");
         assert!(s.ai_include_output);
         assert!(!s.library_seeded);
+        assert_eq!(s.theme, "midnight");
     }
 }

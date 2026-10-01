@@ -11,6 +11,7 @@ import {
   snippetsApi,
 } from "../api";
 import { LIBRARY_SNIPPETS } from "../snippetLibrary";
+import { AUTO, resolveTheme, type Theme, THEMES } from "../themes";
 import { Field } from "./DetailsPanel";
 import { DownloadIcon, EyeIcon, EyeOffIcon, KeyIcon, RefreshIcon } from "./icons";
 
@@ -63,6 +64,31 @@ export function SettingsPage({ settings, onSettingsChange, onSnippetsChanged }: 
       </div>
       <div className="page-scroll settings">
         {note && <p className={note.error ? "error" : "notice"}>{note.text}</p>}
+
+        <section className="settings-card">
+          <h2>Appearance</h2>
+          <div className="theme-grid">
+            {[...THEMES.map((t) => t.id), AUTO].map((id) => (
+              <button
+                key={id}
+                className={`theme-card ${settings.theme === id ? "on" : ""}`}
+                onClick={() => update({ theme: id })}
+              >
+                {id === AUTO ? (
+                  <span className="theme-preview split">
+                    <ThemePreview theme={resolveTheme("daylight")} />
+                    <ThemePreview theme={resolveTheme("midnight")} />
+                  </span>
+                ) : (
+                  <span className="theme-preview">
+                    <ThemePreview theme={THEMES.find((t) => t.id === id)!} />
+                  </span>
+                )}
+                <span className="theme-name">{id === AUTO ? "Auto (system)" : THEMES.find((t) => t.id === id)!.name}</span>
+              </button>
+            ))}
+          </div>
+        </section>
 
         <section className="settings-card">
           <h2>AI command assistant</h2>
@@ -119,6 +145,33 @@ export function SettingsPage({ settings, onSettingsChange, onSnippetsChanged }: 
         </section>
       </div>
     </div>
+  );
+}
+
+/** A miniature of the app drawn in the theme's own colours. */
+function ThemePreview({ theme }: { theme: Theme }) {
+  const v = theme.vars;
+  return (
+    <span className="mini" style={{ background: v["--bg"], borderColor: v["--border"] }}>
+      <span className="mini-side" style={{ background: v["--surface"], borderColor: v["--border"] }}>
+        <i style={{ background: v["--accent"] }} />
+        <i style={{ background: v["--muted"] }} />
+        <i style={{ background: v["--muted"] }} />
+      </span>
+      <span className="mini-main" style={{ background: v["--surface"] }}>
+        <span className="mini-card" style={{ background: v["--surface-2"] }}>
+          <b style={{ background: "#e95420" }} />
+          <i style={{ background: v["--text"] }} />
+        </span>
+        <span className="mini-card" style={{ background: v["--surface-2"] }}>
+          <b style={{ background: v["--accent"] }} />
+          <i style={{ background: v["--text"] }} />
+        </span>
+        <span className="mini-term" style={{ background: v["--bg"], color: theme.ansi.green }}>
+          $ <span style={{ color: v["--accent"] }}>▍</span>
+        </span>
+      </span>
+    </span>
   );
 }
 

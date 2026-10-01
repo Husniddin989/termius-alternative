@@ -5,6 +5,7 @@
 
 ## Imkoniyatlar
 
+- 🎨 **Mavzular** — Midnight, Ocean, Amethyst, Forest, Ember, Daylight (yorug') va Auto (tizimga moslashadi); terminal ranglari ham mavzuga mos o'zgaradi
 - 🖥  **Hostlar** — guruhlar, qidiruv, `user@host` yozib tez ulanish, o'ng panelda tahrirlash, o'ng tugma menyusi
 - 🐧 **OS aniqlash** — birinchi ulanishda server OS'i aniqlanib, ikonka rangi shunga moslanadi
 - 🔐 **Autentifikatsiya** — parol, private key (passphrase bilan) yoki **SSH agent**
@@ -62,6 +63,7 @@ src/                      React UI
   api.ts                  Tauri buyruqlari + SshSession (stream buferi)
   useConnector.tsx        keychain → so'rov → qayta urinish oqimi
   completion.ts           terminal qatorini kuzatish, tarix, autocomplete
+  themes.ts               rang mavzulari (UI + terminal)
   snippetLibrary.ts       tayyor buyruqlar kutubxonasi
   components/
     HostsPage.tsx         qidiruv / tez ulanish, guruhlar, host kartalari

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Terminal } from "@xterm/xterm";
+import { type ITheme, Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
@@ -15,6 +15,8 @@ interface Props {
   snippets: Snippet[];
   /** Send recent terminal output along with AI requests. */
   includeOutput: boolean;
+  /** Colours of the current UI theme. */
+  termTheme: ITheme;
   /** Which model answers, shown in the AI bar. */
   aiLabel: string;
   onClosed: (reason: string | null) => void;
@@ -24,7 +26,17 @@ interface Props {
 const IS_MAC = navigator.platform.toUpperCase().includes("MAC");
 const AI_SHORTCUT = IS_MAC ? "⌘K" : "Ctrl+Shift+K";
 
-export function TerminalView({ session, active, snippets, includeOutput, aiLabel, onClosed, onSnippetSaved }: Props) {
+export function TerminalView({
+  session,
+  active,
+  snippets,
+  includeOutput,
+  termTheme,
+  aiLabel,
+  onClosed,
+  onSnippetSaved,
+}: Props) {
+  const initialTheme = useRef(termTheme);
   const containerRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -101,12 +113,7 @@ export function TerminalView({ session, active, snippets, includeOutput, aiLabel
       fontFamily: '"JetBrains Mono", "SF Mono", Menlo, "Cascadia Code", Consolas, monospace',
       fontSize: 14,
       lineHeight: 1.15,
-      theme: {
-        background: "#0f1115",
-        foreground: "#d6dae2",
-        cursor: "#2dd4bf",
-        selectionBackground: "#2dd4bf44",
-      },
+      theme: initialTheme.current,
       allowProposedApi: true,
     });
     const fit = new FitAddon();
@@ -172,6 +179,10 @@ export function TerminalView({ session, active, snippets, includeOutput, aiLabel
   useEffect(() => {
     if (suggestions.length > 0) placePopup();
   }, [suggestions, placePopup]);
+
+  useEffect(() => {
+    if (termRef.current) termRef.current.options.theme = termTheme;
+  }, [termTheme]);
 
   useEffect(() => {
     if (active && !aiOpen) {

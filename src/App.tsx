@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { confirm, message } from "@tauri-apps/plugin-dialog";
 import {
   type ForwardRule,
@@ -22,6 +22,7 @@ import { ForwardsPage } from "./components/ForwardsPage";
 import { KnownHostsPage } from "./components/KnownHostsPage";
 import { SettingsPage } from "./components/SettingsPage";
 import { LIBRARY_SNIPPETS } from "./snippetLibrary";
+import { applyTheme, AUTO, storedThemeId, type Theme, terminalTheme } from "./themes";
 import { OsIcon } from "./components/OsIcon";
 import {
   CloseIcon,
@@ -76,7 +77,20 @@ export default function App() {
     aiModel: "claude-opus-5-5",
     aiIncludeOutput: false,
     librarySeeded: true,
+    theme: storedThemeId(),
   });
+  const [theme, setTheme] = useState<Theme>(() => applyTheme(storedThemeId()));
+  const termTheme = useMemo(() => terminalTheme(theme), [theme]);
+
+  // Apply the chosen theme; "auto" also follows OS light/dark changes live.
+  useEffect(() => {
+    setTheme(applyTheme(settings.theme));
+    if (settings.theme !== AUTO) return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => setTheme(applyTheme(AUTO));
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, [settings.theme]);
   const { connectWith, dialogs } = useConnector(hosts);
 
   const fail = (e: unknown) => setLoadError(String(e));
@@ -301,6 +315,7 @@ export default function App() {
             active={active === tab.key}
             snippets={snippets}
             includeOutput={settings.aiIncludeOutput}
+            termTheme={termTheme}
             aiLabel={settings.aiProvider === "ollama" ? `local · ${settings.ollamaModel}` : settings.aiModel}
             onClosed={() => markClosed(tab.key)}
             onSnippetSaved={reloadSnippets}
