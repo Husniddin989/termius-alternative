@@ -506,6 +506,21 @@ async fn forward_active(state: State<'_, AppState>) -> CmdResult<HashMap<String,
     Ok(state.forwards.active().await)
 }
 
+/// Per-request timeouts: model downloads can take many minutes.
+fn http_client() -> anyhow::Result<reqwest::Client> {
+    let builder = reqwest::Client::builder().connect_timeout(std::time::Duration::from_secs(10));
+    // reqwest's default verifier panics on Android unless it was initialised
+    // through JNI, so there we check certificates against Mozilla's roots.
+    #[cfg(target_os = "android")]
+    let builder = builder.tls_certs_only(
+        webpki_root_certs::TLS_SERVER_ROOT_CERTS
+            .iter()
+            .map(|der| reqwest::Certificate::from_der(der))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    Ok(builder.build()?)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -526,10 +541,7 @@ pub fn run() {
                 sftp: SftpManager::default(),
                 forwards: ForwardManager::default(),
                 terms: LocalTerminals::default(),
-                // Per-request timeouts: model downloads can take many minutes.
-                http: reqwest::Client::builder()
-                    .connect_timeout(std::time::Duration::from_secs(10))
-                    .build()?,
+                http: http_client()?,
                 sync_lock: tokio::sync::Mutex::new(()),
             });
             Ok(())
