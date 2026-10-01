@@ -15,6 +15,8 @@ interface Props {
   snippets: Snippet[];
   /** Send recent terminal output along with AI requests. */
   includeOutput: boolean;
+  /** Which model answers, shown in the AI bar. */
+  aiLabel: string;
   onClosed: (reason: string | null) => void;
   onSnippetSaved: () => void;
 }
@@ -22,7 +24,7 @@ interface Props {
 const IS_MAC = navigator.platform.toUpperCase().includes("MAC");
 const AI_SHORTCUT = IS_MAC ? "⌘K" : "Ctrl+Shift+K";
 
-export function TerminalView({ session, active, snippets, includeOutput, onClosed, onSnippetSaved }: Props) {
+export function TerminalView({ session, active, snippets, includeOutput, aiLabel, onClosed, onSnippetSaved }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -319,6 +321,7 @@ export function TerminalView({ session, active, snippets, includeOutput, onClose
                 <CloseIcon size={16} />
               </button>
             </form>
+            {aiBusy && <p className="muted small">Asking {aiLabel}… local models can take a few seconds.</p>}
             {aiError && <p className="error small">{aiError}</p>}
             {aiResult && (
               <div className="ai-result">

@@ -5548,6 +5548,7 @@ dependencies = [
  "async-trait",
  "keyring",
  "portable-pty",
+ "regex",
  "reqwest",
  "russh",
  "russh-sftp",

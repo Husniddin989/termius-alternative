@@ -10,6 +10,11 @@ pub const DEFAULT_AI_MODEL: &str = "claude-opus-5-5";
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
+    /// "ollama" (free, runs locally) or "anthropic" (Claude API, needs a key).
+    pub ai_provider: String,
+    pub ollama_url: String,
+    pub ollama_model: String,
+    /// Claude model used when the provider is "anthropic".
     pub ai_model: String,
     /// Send the last lines of terminal output along with AI requests.
     pub ai_include_output: bool,
@@ -21,6 +26,9 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            ai_provider: "ollama".into(),
+            ollama_url: crate::ollama::DEFAULT_URL.into(),
+            ollama_model: crate::ollama::DEFAULT_MODEL.into(),
             ai_model: DEFAULT_AI_MODEL.into(),
             ai_include_output: false,
             library_seeded: false,
@@ -54,6 +62,7 @@ mod tests {
     fn missing_fields_fall_back_to_defaults() {
         let s: Settings = serde_json::from_str(r#"{"aiIncludeOutput": true}"#).unwrap();
         assert_eq!(s.ai_model, DEFAULT_AI_MODEL);
+        assert_eq!(s.ai_provider, "ollama");
         assert!(s.ai_include_output);
         assert!(!s.library_seeded);
     }

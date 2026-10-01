@@ -4,6 +4,7 @@ mod forward;
 mod hostkey;
 mod knownhosts;
 mod localfs;
+mod ollama;
 mod pty;
 mod secrets;
 mod settings;
@@ -197,11 +198,36 @@ fn ai_key_set(key: String) -> CmdResult<()> {
 
 #[tauri::command]
 async fn ai_suggest(state: State<'_, AppState>, request: ai::SuggestRequest) -> CmdResult<ai::Suggestion> {
-    let key = secrets::get(ai::API_KEY_ACCOUNT)
-        .map_err(err)?
-        .ok_or("Add your Anthropic API key in Settings to use AI suggestions.")?;
-    let model = settings::load(&state.data_dir).map_err(err)?.ai_model;
-    ai::suggest(&state.http, &key, &model, &request).await.map_err(err)
+    let s = settings::load(&state.data_dir).map_err(err)?;
+    if s.ai_provider == "anthropic" {
+        let key = secrets::get(ai::API_KEY_ACCOUNT)
+            .map_err(err)?
+            .ok_or("Add your Anthropic API key in Settings, or switch to the free local AI.")?;
+        ai::suggest(&state.http, &key, &s.ai_model, &request).await.map_err(err)
+    } else {
+        ollama::suggest(&state.http, &s.ollama_url, &s.ollama_model, &request)
+            .await
+            .map_err(err)
+    }
+}
+
+#[tauri::command]
+async fn ollama_models(state: State<'_, AppState>, url: String) -> CmdResult<Vec<ollama::LocalModel>> {
+    ollama::list_models(&state.http, &url).await.map_err(err)
+}
+
+#[tauri::command]
+async fn ollama_pull(
+    state: State<'_, AppState>,
+    url: String,
+    model: String,
+    on_progress: Channel<ollama::PullProgress>,
+) -> CmdResult<()> {
+    ollama::pull(&state.http, &url, &model, |p| {
+        let _ = on_progress.send(p);
+    })
+    .await
+    .map_err(err)
 }
 
 // ---- Local terminal ---------------------------------------------------------
@@ -393,8 +419,9 @@ pub fn run() {
                 sftp: SftpManager::default(),
                 forwards: ForwardManager::default(),
                 terms: LocalTerminals::default(),
+                // Per-request timeouts: model downloads can take many minutes.
                 http: reqwest::Client::builder()
-                    .timeout(std::time::Duration::from_secs(90))
+                    .connect_timeout(std::time::Duration::from_secs(10))
                     .build()?,
             });
             Ok(())
@@ -412,6 +439,8 @@ pub fn run() {
             ai_key_status,
             ai_key_set,
             ai_suggest,
+            ollama_models,
+            ollama_pull,
             pty_open,
             pty_write,
             pty_resize,

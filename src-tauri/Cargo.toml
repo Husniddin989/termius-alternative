@@ -31,6 +31,7 @@ tauri-plugin-dialog = "2.8.1"
 russh-sftp = "3.0.1"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
+regex = "1.13.1"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

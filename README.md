@@ -15,7 +15,9 @@
 - 💻 **Lokal terminal** — kompyuteringizning o'z shell'i (zsh/bash/fish/PowerShell) alohida tabda
 - ⚡ **Snippets** — 127 ta tayyor buyruq (Linux, Docker, Git, systemd, tarmoq, DB, Kubernetes…) kategoriyalar bo'yicha; `<placeholder>` bor buyruqlar Enter'siz yoziladi
 - ⌨️ **Autocomplete** — terminalda yozayotganingizda tarix va snippetlardan taklif chiqadi, `→` bilan qabul qilinadi
-- ✨ **AI yordamchi** — ⌘K / Ctrl+Shift+K: istalgan tilda yozing ("eng katta fayllarni top"), Claude buyruqni tayyorlaydi; Insert / Run / Save as snippet. O'z Anthropic API kalitingiz bilan (Settings), kalit keychain'da saqlanadi
+- ✨ **AI yordamchi** — ⌘K / Ctrl+Shift+K: istalgan tilda yozing ("eng katta fayllarni top"), AI buyruqni tayyorlaydi; Insert / Run / Save as snippet. Xavfli buyruqlar (rm -rf, reboot…) model nima desa ham alohida belgilanadi
+  - **Lokal AI — bepul, offline** (odatiy): [Ollama](https://ollama.com) orqali `qwen2.5-coder` modellari; Settings'dan bir tugma bilan yuklab olinadi, hech narsa kompyuterdan chiqmaydi
+  - **Claude API** — eng yaxshi sifat; o'z Anthropic API kalitingiz bilan, kalit keychain'da saqlanadi
 - 📁 **SFTP** — ikki panel (Local | Remote): drag & drop bilan fayl ko'chirish (progress bilan), papka yaratish, nomini o'zgartirish, o'chirish
 - 🔏 **Known Hosts** — ishonilgan server kalitlarini ko'rish va o'chirish
 - 🔀 **Port forwarding** — local (`-L`) va dynamic SOCKS5 (`-D`), start/stop bilan
@@ -47,6 +49,9 @@ cargo test
 # Haqiqiy SSH serverga qarshi end-to-end testlar (shell, jump host, SFTP,
 # port forwarding; agent testi uchun SSH_AUTH_SOCK'da kalit bo'lishi kerak):
 SSH_TEST_ADDR=127.0.0.1:22 SSH_TEST_USER=me SSH_TEST_PASSWORD=... cargo test -- --include-ignored
+
+# Haqiqiy Ollama bilan:
+OLLAMA_TEST_MODEL=qwen2.5-coder:3b cargo test real_ollama -- --ignored --nocapture
 ```
 
 ## Arxitektura
@@ -78,7 +83,8 @@ src-tauri/src/
   localfs.rs              lokal fayllar (SFTP chap paneli)
   secrets.rs              OS keychain (keyring)
   pty.rs                  lokal terminal (portable-pty, faqat desktop)
-  ai.rs                   AI buyruq takliflari (Claude Messages API)
+  ai.rs                   AI buyruq takliflari: umumiy prompt + Claude Messages API
+  ollama.rs               lokal AI (Ollama): modellar ro'yxati, yuklab olish, takliflar
   settings.rs             sozlamalar (model, AI va kutubxona)
   store.rs                hosts / snippets / forwards JSON saqlash
 ```

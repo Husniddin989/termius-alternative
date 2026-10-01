@@ -69,7 +69,14 @@ export default function App() {
   const [details, setDetails] = useState<Host | null>(null);
   const [sftpRequest, setSftpRequest] = useState<{ host: Host; nonce: number } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [settings, setSettings] = useState<Settings>({ aiModel: "claude-opus-5-5", aiIncludeOutput: false, librarySeeded: true });
+  const [settings, setSettings] = useState<Settings>({
+    aiProvider: "ollama",
+    ollamaUrl: "http://127.0.0.1:11434",
+    ollamaModel: "qwen2.5-coder:3b",
+    aiModel: "claude-opus-5-5",
+    aiIncludeOutput: false,
+    librarySeeded: true,
+  });
   const { connectWith, dialogs } = useConnector(hosts);
 
   const fail = (e: unknown) => setLoadError(String(e));
@@ -294,6 +301,7 @@ export default function App() {
             active={active === tab.key}
             snippets={snippets}
             includeOutput={settings.aiIncludeOutput}
+            aiLabel={settings.aiProvider === "ollama" ? `local · ${settings.ollamaModel}` : settings.aiModel}
             onClosed={() => markClosed(tab.key)}
             onSnippetSaved={reloadSnippets}
           />

@@ -24,7 +24,12 @@ export interface Snippet {
   category?: string | null;
 }
 
+export type AiProvider = "ollama" | "anthropic";
+
 export interface Settings {
+  aiProvider: AiProvider;
+  ollamaUrl: string;
+  ollamaModel: string;
   aiModel: string;
   aiIncludeOutput: boolean;
   librarySeeded: boolean;
@@ -114,6 +119,26 @@ export const snippetsApi = {
 export const settingsApi = {
   get: () => invoke<Settings>("settings_get"),
   set: (settings: Settings) => invoke<void>("settings_set", { settings }),
+};
+
+export interface LocalModel {
+  name: string;
+  size: number;
+}
+
+export interface PullProgress {
+  status: string;
+  completed: number;
+  total: number;
+}
+
+export const ollamaApi = {
+  models: (url: string) => invoke<LocalModel[]>("ollama_models", { url }),
+  pull: (url: string, model: string, onProgress: (p: PullProgress) => void) => {
+    const channel = new Channel<PullProgress>();
+    channel.onmessage = onProgress;
+    return invoke<void>("ollama_pull", { url, model, onProgress: channel });
+  },
 };
 
 export const aiApi = {
