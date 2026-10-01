@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import type { Host } from "../api";
 import { useContextMenu } from "./ContextMenu";
 import { OsIcon } from "./OsIcon";
-import { ChevronLeft, GridIcon, GroupIcon, ListIcon, PlusIcon, SearchIcon, TerminalIcon } from "./icons";
+import { ChevronLeft, EditIcon, GridIcon, GroupIcon, ListIcon, PlusIcon, SearchIcon, TerminalIcon } from "./icons";
+import { IS_MOBILE } from "../platform";
 
 interface Props {
   hosts: Host[];
@@ -14,7 +15,8 @@ interface Props {
   onDuplicate: (host: Host) => void;
   onDelete: (host: Host) => void;
   onQuickConnect: (host: Host) => void;
-  onLocalTerminal: () => void;
+  /** Not offered on phones. */
+  onLocalTerminal?: () => void;
 }
 
 /** Parses "user@host", "user@host:port" or "ssh user@host -p port". */
@@ -46,7 +48,7 @@ export function HostsPage(props: Props) {
     props;
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState<string | null>(null);
-  const [layout, setLayout] = useState<"grid" | "list">("grid");
+  const [layout, setLayout] = useState<"grid" | "list">(IS_MOBILE ? "list" : "grid");
   const menu = useContextMenu();
   const quick = parseQuickConnect(query);
 
@@ -72,7 +74,7 @@ export function HostsPage(props: Props) {
   const hostMenu = (e: React.MouseEvent, h: Host) =>
     menu.open(e, [
       { label: "Connect", onClick: () => onConnect(h) },
-      { label: "Open SFTP", onClick: () => onSftp(h) },
+      ...(IS_MOBILE ? [] : [{ label: "Open SFTP", onClick: () => onSftp(h) }]),
       { label: "Edit", onClick: () => onSelect(h) },
       { label: "Duplicate", onClick: () => onDuplicate(h) },
       { label: "Delete", onClick: () => onDelete(h), danger: true },
@@ -105,9 +107,11 @@ export function HostsPage(props: Props) {
         <button className="toolbar-btn" onClick={() => onNew(group)}>
           <PlusIcon size={16} /> New host
         </button>
-        <button className="toolbar-btn" onClick={onLocalTerminal}>
-          <TerminalIcon size={16} /> Local terminal
-        </button>
+        {onLocalTerminal && (
+          <button className="toolbar-btn" onClick={onLocalTerminal}>
+            <TerminalIcon size={16} /> Local terminal
+          </button>
+        )}
         <div className="spacer" />
         <button className={`icon-btn ${layout === "grid" ? "on" : ""}`} onClick={() => setLayout("grid")} title="Grid">
           <GridIcon size={17} />
@@ -166,10 +170,11 @@ export function HostsPage(props: Props) {
             <div
               key={h.id}
               className={`card ${selectedId === h.id ? "selected" : ""}`}
-              onClick={() => onSelect(h)}
-              onDoubleClick={() => onConnect(h)}
+              // Phones: tap connects, long-press or ✎ edits. Desktop: click edits, double-click connects.
+              onClick={() => (IS_MOBILE ? onConnect(h) : onSelect(h))}
+              onDoubleClick={() => !IS_MOBILE && onConnect(h)}
               onContextMenu={(e) => hostMenu(e, h)}
-              title="Double-click to connect"
+              title={IS_MOBILE ? undefined : "Double-click to connect"}
             >
               <OsIcon os={h.os} />
               <div className="card-text">
@@ -180,6 +185,18 @@ export function HostsPage(props: Props) {
                   {h.jumpHostId && ` · via ${hosts.find((j) => j.id === h.jumpHostId)?.label ?? "?"}`}
                 </span>
               </div>
+              {IS_MOBILE && (
+                <button
+                  className="icon-btn card-edit"
+                  aria-label="Edit host"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect(h);
+                  }}
+                >
+                  <EditIcon size={17} />
+                </button>
+              )}
             </div>
           ))}
         </div>

@@ -27,7 +27,8 @@
 
 - [ ] Remote port forwarding (`-R`)
 - [ ] Shifrlangan sinxronizatsiya (qurilmalar orasida)
-- [ ] Mobil (Android / iOS) — Tauri 2 mobile (lokal terminal faqat desktop'da, kod bunga tayyor)
+- [x] Android ilova (hostlar + SSH terminal)
+- [ ] iOS ilova
 - [ ] Split-pane terminal, temalar
 
 ## Ishga tushirish
@@ -40,6 +41,24 @@ npm install
 npm run tauri dev      # development
 npm run tauri build    # installer / bundle yaratish
 ```
+
+## Android
+
+Telefon versiyasida hostlar, SSH terminal (Esc/Tab/Ctrl/strelkalar paneli bilan), Known Hosts va mavzular bor.
+Parollar Android'da ilovaning shaxsiy papkasida saqlanadi (boshqa ilovalar o'qiy olmaydi).
+
+Talablar: Android SDK (platform 36, build-tools), NDK 27, JDK 17+.
+
+```bash
+export ANDROID_HOME=~/Android/Sdk NDK_HOME=$ANDROID_HOME/ndk/27.3.13750724
+rustup target add aarch64-linux-android
+npm run tauri android build -- --apk --target aarch64
+# Imzolash (bir marta yaratilgan kalit bilan):
+zipalign -p 4 app-universal-release-unsigned.apk aligned.apk
+apksigner sign --ks termius-release.jks --out termius.apk aligned.apk
+```
+
+Yangilanishlarni o'rnatish uchun har safar **o'sha bitta** kalit bilan imzolash kerak.
 
 ## Testlar
 

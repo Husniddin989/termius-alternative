@@ -8,6 +8,14 @@ import { aiApi, type AiSuggestion, type Snippet, snippetsApi, type SshSession } 
 import { applyInput, completions, emptyLine, type LineState, loadHistory, rememberCommand } from "../completion";
 import { hasPlaceholder } from "../snippetLibrary";
 import { BoltIcon, CloseIcon, SearchIcon, SparkleIcon } from "./icons";
+import { IS_MOBILE } from "../platform";
+
+/** Ctrl+key for a single typed character, e.g. "c" → ETX (Ctrl+C). */
+function withCtrl(ch: string): string {
+  if (/^[a-z]$/i.test(ch)) return String.fromCharCode(ch.toUpperCase().charCodeAt(0) & 0x1f);
+  const special: Record<string, string> = { "[": "\x1b", "\\": "\x1c", "]": "\x1d", " ": "\x00", "/": "\x1f" };
+  return special[ch] ?? ch;
+}
 
 interface Props {
   session: SshSession;
@@ -65,6 +73,14 @@ export function TerminalView({
   const [aiContextLine, setAiContextLine] = useState<string | null>(null);
   const openAiRef = useRef<() => void>(() => {});
 
+  // ---- Phone extra-keys bar: a sticky Ctrl applies to the next typed key ----
+  const ctrlRef = useRef(false);
+  const [ctrlOn, setCtrlOn] = useState(false);
+  const setCtrl = (on: boolean) => {
+    ctrlRef.current = on;
+    setCtrlOn(on);
+  };
+
   const refreshSuggestions = useCallback(() => {
     const line = lineRef.current;
     setSuggestions(line.known ? completions(line.text, loadHistory(), snippetsRef.current) : []);
@@ -111,7 +127,7 @@ export function TerminalView({
     const term = new Terminal({
       cursorBlink: true,
       fontFamily: '"JetBrains Mono", "SF Mono", Menlo, "Cascadia Code", Consolas, monospace',
-      fontSize: 14,
+      fontSize: IS_MOBILE ? 13 : 14,
       lineHeight: 1.15,
       theme: initialTheme.current,
       allowProposedApi: true,
@@ -143,7 +159,13 @@ export function TerminalView({
       return true;
     });
 
-    const input = term.onData((data) => {
+    const input = term.onData((typed) => {
+      let data = typed;
+      if (ctrlRef.current && typed.length === 1) {
+        data = withCtrl(typed);
+        ctrlRef.current = false;
+        setCtrlOn(false);
+      }
       const result = applyInput(lineRef.current, data);
       lineRef.current = result.line;
       if (result.executed) rememberCommand(result.executed);
@@ -282,7 +304,7 @@ export function TerminalView({
       <div className="terminal-area" ref={areaRef}>
         <div className="term-host" ref={containerRef} />
 
-        <div className="term-buttons">
+        <div className="term-buttons" hidden={IS_MOBILE}>
           <button className="term-btn" onClick={() => openAiRef.current()} title={`Ask AI for a command (${AI_SHORTCUT})`}>
             <SparkleIcon size={16} />
           </button>
@@ -357,6 +379,50 @@ export function TerminalView({
           </div>
         )}
       </div>
+
+      {IS_MOBILE && (
+        <div className="keybar" role="toolbar" aria-label="Extra keys">
+          {(
+            [
+              ["Esc", "\x1b"],
+              ["Tab", "\t"],
+              ["Ctrl", null],
+              ["←", "D"],
+              ["↑", "A"],
+              ["↓", "B"],
+              ["→", "C"],
+              ["|", "|"],
+              ["/", "/"],
+              ["-", "-"],
+              ["~", "~"],
+            ] as [string, string | null][]
+          ).map(([label, seq]) => (
+            <button
+              key={label}
+              className={label === "Ctrl" && ctrlOn ? "on" : ""}
+              // Keep focus (and the on-screen keyboard) on the terminal.
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const term = termRef.current;
+                if (!term) return;
+                if (seq === null) return setCtrl(!ctrlRef.current);
+                if (label === "→" && suggestionsRef.current.length > 0) return accept(suggestionsRef.current[0]);
+                const isArrow = ["←", "↑", "↓", "→"].includes(label);
+                const out = isArrow ? (term.modes.applicationCursorKeysMode ? "\x1bO" : "\x1b[") + seq : seq;
+                if (ctrlRef.current && out.length === 1) {
+                  setCtrl(false);
+                  typeText(withCtrl(out));
+                } else {
+                  typeText(out);
+                }
+                term.focus();
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {panelOpen && (
         <aside className="snippet-panel">

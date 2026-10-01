@@ -37,6 +37,7 @@ import {
   VaultIcon,
 } from "./components/icons";
 import { forgetSessionAuth, useConnector } from "./useConnector";
+import { IS_MOBILE } from "./platform";
 import "./App.css";
 
 interface TerminalTab {
@@ -55,6 +56,9 @@ const SECTIONS = [
   { key: "settings", label: "Settings", icon: SettingsIcon },
 ] as const;
 type Section = (typeof SECTIONS)[number]["key"];
+
+/** The phone app covers hosts and terminals; the rest stays desktop-only. */
+const MOBILE_SECTIONS: string[] = ["hosts", "known", "settings"];
 
 const HOME = "home";
 const SFTP = "sftp";
@@ -206,9 +210,11 @@ export default function App() {
         <button className={`tab fixed ${active === HOME ? "active" : ""}`} onClick={() => setActive(HOME)}>
           <VaultIcon size={16} /> Home
         </button>
-        <button className={`tab fixed ${active === SFTP ? "active" : ""}`} onClick={() => setActive(SFTP)}>
-          <FolderIcon size={16} /> SFTP
-        </button>
+        {!IS_MOBILE && (
+          <button className={`tab fixed ${active === SFTP ? "active" : ""}`} onClick={() => setActive(SFTP)}>
+            <FolderIcon size={16} /> SFTP
+          </button>
+        )}
         <div className="tab-strip">
           {tabs.map((tab) => (
             <div
@@ -230,9 +236,11 @@ export default function App() {
               </button>
             </div>
           ))}
-          <button className="icon-btn new-tab" title="Local terminal" onClick={openLocalTerminal}>
-            <TerminalIcon size={16} />
-          </button>
+          {!IS_MOBILE && (
+            <button className="icon-btn new-tab" title="Local terminal" onClick={openLocalTerminal}>
+              <TerminalIcon size={16} />
+            </button>
+          )}
           <button
             className="icon-btn new-tab"
             title="New connection"
@@ -249,7 +257,7 @@ export default function App() {
       <div className="body">
         <div className="home" hidden={active !== HOME}>
           <aside className="sidebar">
-            {SECTIONS.map(({ key, label, icon: Icon }) => (
+            {SECTIONS.filter((s) => !IS_MOBILE || MOBILE_SECTIONS.includes(s.key)).map(({ key, label, icon: Icon }) => (
               <button key={key} className={`nav-item ${section === key ? "active" : ""}`} onClick={() => setSection(key)}>
                 <Icon size={18} />
                 {label}
@@ -271,7 +279,7 @@ export default function App() {
                   onDuplicate={duplicateHost}
                   onDelete={deleteHost}
                   onQuickConnect={openTerminal}
-                  onLocalTerminal={openLocalTerminal}
+                  onLocalTerminal={IS_MOBILE ? undefined : openLocalTerminal}
                 />
                 {details && (
                   <HostDetails
@@ -304,9 +312,11 @@ export default function App() {
           </main>
         </div>
 
-        <div className="sftp-host" hidden={active !== SFTP}>
-          <SftpPage hosts={hosts} connectWith={connectWith} request={sftpRequest} />
-        </div>
+        {!IS_MOBILE && (
+          <div className="sftp-host" hidden={active !== SFTP}>
+            <SftpPage hosts={hosts} connectWith={connectWith} request={sftpRequest} />
+          </div>
+        )}
 
         {tabs.map((tab) => (
           <TerminalView

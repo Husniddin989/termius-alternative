@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { type AuthMethod, type Host, secretsApi } from "../api";
 import { forgetSessionAuth } from "../useConnector";
+import { IS_MOBILE } from "../platform";
 import { DetailsPanel, Field, Section } from "./DetailsPanel";
 import { OsIcon } from "./OsIcon";
 import { ChevronDown, EyeIcon, EyeOffIcon, GroupIcon, KeyIcon, LockIcon, UserIcon } from "./icons";
@@ -49,16 +50,17 @@ export function HostDetails({ host: initial, hosts, onSave, onConnect, onDuplica
     setSecret("");
     setError(null);
     setMore(!!initial.jumpHostId);
-    if (initial.id) secretsApi.get(initial.id).then((s) => setHasSecret(s !== null), () => setHasSecret(false));
+    if (initial.id)
+      secretsApi.get(initial.id).then(
+        (s) => setHasSecret(s !== null),
+        () => setHasSecret(false),
+      );
     else setHasSecret(false);
   }, [initial]);
 
   const set = <K extends keyof Host>(key: K, value: Host[K]) => setHost((h) => ({ ...h, [key]: value }));
 
-  const groups = useMemo(
-    () => [...new Set(hosts.map((h) => h.group).filter((g): g is string => !!g))].sort(),
-    [hosts],
-  );
+  const groups = useMemo(() => [...new Set(hosts.map((h) => h.group).filter((g): g is string => !!g))].sort(), [hosts]);
   const jumpCandidates = hosts.filter((h) => h.id !== host.id && h.jumpHostId !== host.id);
   const dirty = isNew || secret !== "" || JSON.stringify(host) !== JSON.stringify(initial);
 
@@ -165,14 +167,21 @@ export function HostDetails({ host: initial, hosts, onSave, onConnect, onDuplica
       </Section>
 
       <Section title="Authentication">
-        <Field icon={<UserIcon size={15} />} placeholder="Username" value={host.username} onChange={(e) => set("username", e.target.value)} />
+        <Field
+          icon={<UserIcon size={15} />}
+          placeholder="Username"
+          value={host.username}
+          onChange={(e) => set("username", e.target.value)}
+        />
 
         <div className="segmented">
-          {(Object.keys(AUTH_LABELS) as AuthMethod[]).map((m) => (
-            <button key={m} className={host.authMethod === m ? "on" : ""} onClick={() => set("authMethod", m)}>
-              {AUTH_LABELS[m]}
-            </button>
-          ))}
+          {(Object.keys(AUTH_LABELS) as AuthMethod[])
+            .filter((m) => !(IS_MOBILE && m === "agent")) // no SSH agent on phones
+            .map((m) => (
+              <button key={m} className={host.authMethod === m ? "on" : ""} onClick={() => set("authMethod", m)}>
+                {AUTH_LABELS[m]}
+              </button>
+            ))}
         </div>
 
         {host.authMethod === "key" && (
@@ -188,11 +197,7 @@ export function HostDetails({ host: initial, hosts, onSave, onConnect, onDuplica
             icon={<LockIcon size={15} />}
             type={showSecret ? "text" : "password"}
             placeholder={
-              hasSecret
-                ? "•••••• saved in keychain"
-                : host.authMethod === "key"
-                  ? "Passphrase (optional)"
-                  : "Password"
+              hasSecret ? "•••••• saved in keychain" : host.authMethod === "key" ? "Passphrase (optional)" : "Password"
             }
             value={secret}
             onChange={(e) => setSecret(e.target.value)}

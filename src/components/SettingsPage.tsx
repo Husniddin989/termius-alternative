@@ -12,6 +12,7 @@ import {
 } from "../api";
 import { LIBRARY_SNIPPETS } from "../snippetLibrary";
 import { AUTO, resolveTheme, type Theme, THEMES } from "../themes";
+import { IS_MOBILE } from "../platform";
 import { Field } from "./DetailsPanel";
 import { DownloadIcon, EyeIcon, EyeOffIcon, KeyIcon, RefreshIcon } from "./icons";
 
@@ -84,65 +85,75 @@ export function SettingsPage({ settings, onSettingsChange, onSnippetsChanged }: 
                     <ThemePreview theme={THEMES.find((t) => t.id === id)!} />
                   </span>
                 )}
-                <span className="theme-name">{id === AUTO ? "Auto (system)" : THEMES.find((t) => t.id === id)!.name}</span>
+                <span className="theme-name">
+                  {id === AUTO ? "Auto (system)" : THEMES.find((t) => t.id === id)!.name}
+                </span>
               </button>
             ))}
           </div>
         </section>
 
-        <section className="settings-card">
-          <h2>AI command assistant</h2>
-          <p className="muted">
-            Press ✦ in a terminal tab ({IS_MAC ? "⌘K" : "Ctrl+Shift+K"}) and describe what you need in any language.
-          </p>
-          <div className="segmented provider">
-            {(
-              [
-                ["ollama", "Local AI — free, offline"],
-                ["anthropic", "Claude API — best quality"],
-              ] as [AiProvider, string][]
-            ).map(([id, label]) => (
-              <button key={id} className={settings.aiProvider === id ? "on" : ""} onClick={() => update({ aiProvider: id })}>
-                {label}
-              </button>
-            ))}
-          </div>
-          {settings.aiProvider === "ollama" ? (
-            <OllamaSettings settings={settings} update={update} />
-          ) : (
-            <AnthropicSettings settings={settings} update={update} setNote={setNote} />
-          )}
+        {!IS_MOBILE && (
+          <>
+            <section className="settings-card">
+              <h2>AI command assistant</h2>
+              <p className="muted">
+                Press ✦ in a terminal tab ({IS_MAC ? "⌘K" : "Ctrl+Shift+K"}) and describe what you need in any language.
+              </p>
+              <div className="segmented provider">
+                {(
+                  [
+                    ["ollama", "Local AI — free, offline"],
+                    ["anthropic", "Claude API — best quality"],
+                  ] as [AiProvider, string][]
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    className={settings.aiProvider === id ? "on" : ""}
+                    onClick={() => update({ aiProvider: id })}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {settings.aiProvider === "ollama" ? (
+                <OllamaSettings settings={settings} update={update} />
+              ) : (
+                <AnthropicSettings settings={settings} update={update} setNote={setNote} />
+              )}
 
-          <label className="setting check">
-            <input
-              type="checkbox"
-              checked={settings.aiIncludeOutput}
-              onChange={(e) => update({ aiIncludeOutput: e.target.checked })}
-            />
-            <span>
-              Include the last 40 lines of terminal output in AI requests
-              <span className="muted small block">
-                Helps with “fix this error”.{" "}
-                {settings.aiProvider === "ollama"
-                  ? "With the local AI nothing leaves your computer."
-                  : "Sends what is on screen to the Anthropic API."}
-              </span>
-            </span>
-          </label>
-        </section>
+              <label className="setting check">
+                <input
+                  type="checkbox"
+                  checked={settings.aiIncludeOutput}
+                  onChange={(e) => update({ aiIncludeOutput: e.target.checked })}
+                />
+                <span>
+                  Include the last 40 lines of terminal output in AI requests
+                  <span className="muted small block">
+                    Helps with “fix this error”.{" "}
+                    {settings.aiProvider === "ollama"
+                      ? "With the local AI nothing leaves your computer."
+                      : "Sends what is on screen to the Anthropic API."}
+                  </span>
+                </span>
+              </label>
+            </section>
 
-        <section className="settings-card">
-          <h2>Snippet library</h2>
-          <p className="muted">
-            {LIBRARY_SNIPPETS.length} ready-made commands for Linux, Docker, Git, systemd, networking, databases and more.
-            They also power autocomplete while you type in a terminal (press → to accept a suggestion).
-          </p>
-          <div>
-            <button className="secondary" onClick={addLibrary}>
-              Add missing built-in snippets
-            </button>
-          </div>
-        </section>
+            <section className="settings-card">
+              <h2>Snippet library</h2>
+              <p className="muted">
+                {LIBRARY_SNIPPETS.length} ready-made commands for Linux, Docker, Git, systemd, networking, databases and
+                more. They also power autocomplete while you type in a terminal (press → to accept a suggestion).
+              </p>
+              <div>
+                <button className="secondary" onClick={addLibrary}>
+                  Add missing built-in snippets
+                </button>
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </div>
   );
@@ -242,7 +253,9 @@ function OllamaSettings({ settings, update }: { settings: Settings; update: Upda
               )}
               .
             </li>
-            <li>Open the Ollama app (or run <code>ollama serve</code>).</li>
+            <li>
+              Open the Ollama app (or run <code>ollama serve</code>).
+            </li>
             <li>Come back here and press Check again, then download a model below.</li>
           </ol>
           <div>
@@ -324,7 +337,11 @@ function OllamaSettings({ settings, update }: { settings: Settings; update: Upda
         <span>Ollama address</span>
         <div className="setting-row">
           <Field value={url} onChange={(e) => setUrl(e.target.value)} />
-          <button className="secondary" disabled={url === settings.ollamaUrl} onClick={() => update({ ollamaUrl: url.trim() })}>
+          <button
+            className="secondary"
+            disabled={url === settings.ollamaUrl}
+            onClick={() => update({ ollamaUrl: url.trim() })}
+          >
             Save
           </button>
         </div>

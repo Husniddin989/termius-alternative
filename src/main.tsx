@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { applyTheme, storedThemeId } from "./themes";
+import "./platform";
 
 // Paint with the last used theme right away; the saved setting follows.
 applyTheme(storedThemeId());

@@ -407,6 +407,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
+            secrets::init(data_dir.clone());
             let verifier = UiVerifier::new(app.handle().clone());
             app.manage(AppState {
                 ctx: ConnectContext {
