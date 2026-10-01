@@ -1,6 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-export type AuthMethod = "password" | "key";
+export type AuthMethod = "password" | "key" | "agent";
 
 export interface Host {
   id: string;
@@ -11,21 +12,122 @@ export interface Host {
   authMethod: AuthMethod;
   keyPath?: string | null;
   group?: string | null;
+  jumpHostId?: string | null;
+}
+
+export interface Snippet {
+  id: string;
+  name: string;
+  command: string;
+}
+
+export type ForwardKind = "local" | "dynamic";
+
+export interface ForwardRule {
+  id: string;
+  label: string;
+  hostId: string;
+  kind: ForwardKind;
+  bindHost: string;
+  bindPort: number;
+  destHost?: string | null;
+  destPort?: number | null;
 }
 
 export type Auth =
   | { kind: "password"; password: string }
-  | { kind: "key"; keyPath: string; passphrase?: string | null };
+  | { kind: "key"; keyPath: string; passphrase?: string | null }
+  | { kind: "agent" };
+
+export interface Target {
+  host: string;
+  port: number;
+  username: string;
+  auth: Auth;
+}
+
+export interface ConnectRequest {
+  target: Target;
+  jump?: Target | null;
+}
+
+export interface HostKeyPrompt {
+  id: string;
+  host: string;
+  port: number;
+  algorithm: string;
+  fingerprint: string;
+}
+
+export interface SftpEntry {
+  name: string;
+  path: string;
+  isDir: boolean;
+  isSymlink: boolean;
+  size: number;
+  modified: number | null;
+  permissions: number | null;
+}
+
+export interface Progress {
+  done: number;
+  total: number;
+}
+
+function crud<T>(noun: string, key: string) {
+  return {
+    list: () => invoke<T[]>(`${noun}_list`),
+    save: (item: T) => invoke<T>(`${noun}_save`, { [key]: item }),
+    remove: (id: string) => invoke<void>(`${noun}_delete`, { id }),
+  };
+}
+
+export const hostsApi = crud<Host>("hosts", "host");
+export const snippetsApi = crud<Snippet>("snippets", "snippet");
+export const forwardsApi = crud<ForwardRule>("forwards", "rule");
+
+export const secretsApi = {
+  get: (hostId: string) => invoke<string | null>("secret_get", { hostId }),
+  set: (hostId: string, secret: string) => invoke<void>("secret_set", { hostId, secret }),
+  remove: (hostId: string) => invoke<void>("secret_delete", { hostId }),
+};
+
+export const hostKeyApi = {
+  onPrompt: (cb: (p: HostKeyPrompt) => void): Promise<UnlistenFn> =>
+    listen<HostKeyPrompt>("host-key-prompt", (e) => cb(e.payload)),
+  respond: (id: string, accept: boolean) => invoke<void>("host_key_respond", { id, accept }),
+};
+
+export const forwardApi = {
+  start: (ruleId: string, request: ConnectRequest) =>
+    invoke<string>("forward_start", { ruleId, request }),
+  stop: (ruleId: string) => invoke<void>("forward_stop", { ruleId }),
+  active: () => invoke<Record<string, string>>("forward_active"),
+};
+
+function progressChannel(onProgress?: (p: Progress) => void) {
+  const channel = new Channel<Progress>();
+  channel.onmessage = (p) => onProgress?.(p);
+  return channel;
+}
+
+export const sftpApi = {
+  open: (request: ConnectRequest) => invoke<{ id: string; home: string }>("sftp_open", { request }),
+  list: (id: string, path: string) => invoke<SftpEntry[]>("sftp_list", { id, path }),
+  download: (id: string, remote: string, local: string, onProgress?: (p: Progress) => void) =>
+    invoke<void>("sftp_download", { id, remote, local, onProgress: progressChannel(onProgress) }),
+  upload: (id: string, local: string, remote: string, onProgress?: (p: Progress) => void) =>
+    invoke<void>("sftp_upload", { id, local, remote, onProgress: progressChannel(onProgress) }),
+  mkdir: (id: string, path: string) => invoke<void>("sftp_mkdir", { id, path }),
+  rename: (id: string, from: string, to: string) => invoke<void>("sftp_rename", { id, from, to }),
+  remove: (id: string, path: string, isDir: boolean) =>
+    invoke<void>("sftp_remove", { id, path, isDir }),
+  close: (id: string) => invoke<void>("sftp_close", { id }),
+};
 
 type SshEvent =
   | { event: "data"; data: number[] }
   | { event: "closed"; data: { reason: string | null } };
-
-export const hostsApi = {
-  list: () => invoke<Host[]>("hosts_list"),
-  save: (host: Host) => invoke<Host>("hosts_save", { host }),
-  remove: (id: string) => invoke<void>("hosts_delete", { id }),
-};
 
 export interface SessionListener {
   onData(bytes: Uint8Array): void;
@@ -43,16 +145,13 @@ export class SshSession {
 
   private constructor(public readonly id: string) {}
 
-  static async open(host: Host, auth: Auth, cols = 120, rows = 32): Promise<SshSession> {
+  static async open(request: ConnectRequest, cols = 120, rows = 32): Promise<SshSession> {
     let session: SshSession | null = null;
     const early: SshEvent[] = [];
     const channel = new Channel<SshEvent>();
     channel.onmessage = (msg) => (session ? session.handle(msg) : early.push(msg));
 
-    const id = await invoke<string>("ssh_connect", {
-      request: { host: host.host, port: host.port, username: host.username, auth, cols, rows },
-      onEvent: channel,
-    });
+    const id = await invoke<string>("ssh_connect", { request, cols, rows, onEvent: channel });
     session = new SshSession(id);
     early.forEach((msg) => session!.handle(msg));
     return session;

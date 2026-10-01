@@ -1,17 +1,19 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
-import type { SshSession } from "../api";
+import type { Snippet, SshSession } from "../api";
 
 interface Props {
   session: SshSession;
   active: boolean;
+  snippets: Snippet[];
   onClosed: (reason: string | null) => void;
 }
 
-export function TerminalView({ session, active, onClosed }: Props) {
+export function TerminalView({ session, active, snippets, onClosed }: Props) {
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -64,5 +66,30 @@ export function TerminalView({ session, active, onClosed }: Props) {
     }
   }, [active]);
 
-  return <div className="terminal" ref={containerRef} hidden={!active} />;
+  const runSnippet = (s: Snippet) => {
+    setPaletteOpen(false);
+    session.write(s.command.replace(/\r?\n/g, "\r") + "\r");
+    termRef.current?.focus();
+  };
+
+  return (
+    <div className="terminal-wrap" hidden={!active}>
+      <div className="terminal" ref={containerRef} />
+      <div className="palette">
+        <button className="ghost" onClick={() => setPaletteOpen((o) => !o)} title="Snippets">
+          ⚡
+        </button>
+        {paletteOpen && (
+          <div className="palette-menu">
+            {snippets.length === 0 && <p className="muted">No snippets yet — add them in the Snippets tab.</p>}
+            {snippets.map((s) => (
+              <button key={s.id} className="ghost" onClick={() => runSnippet(s)} title={s.command}>
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
