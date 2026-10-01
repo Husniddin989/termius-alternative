@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { Host } from "../api";
 import { useContextMenu } from "./ContextMenu";
 import { OsIcon } from "./OsIcon";
-import { ChevronLeft, GridIcon, GroupIcon, ListIcon, PlusIcon, SearchIcon } from "./icons";
+import { ChevronLeft, GridIcon, GroupIcon, ListIcon, PlusIcon, SearchIcon, TerminalIcon } from "./icons";
 
 interface Props {
   hosts: Host[];
@@ -14,6 +14,7 @@ interface Props {
   onDuplicate: (host: Host) => void;
   onDelete: (host: Host) => void;
   onQuickConnect: (host: Host) => void;
+  onLocalTerminal: () => void;
 }
 
 /** Parses "user@host", "user@host:port" or "ssh user@host -p port". */
@@ -41,7 +42,8 @@ export function parseQuickConnect(input: string): Host | null {
 }
 
 export function HostsPage(props: Props) {
-  const { hosts, selectedId, onSelect, onConnect, onSftp, onNew, onDuplicate, onDelete, onQuickConnect } = props;
+  const { hosts, selectedId, onSelect, onConnect, onSftp, onNew, onDuplicate, onDelete, onQuickConnect, onLocalTerminal } =
+    props;
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState<string | null>(null);
   const [layout, setLayout] = useState<"grid" | "list">("grid");
@@ -102,6 +104,9 @@ export function HostsPage(props: Props) {
       <div className="toolbar">
         <button className="toolbar-btn" onClick={() => onNew(group)}>
           <PlusIcon size={16} /> New host
+        </button>
+        <button className="toolbar-btn" onClick={onLocalTerminal}>
+          <TerminalIcon size={16} /> Local terminal
         </button>
         <div className="spacer" />
         <button className={`icon-btn ${layout === "grid" ? "on" : ""}`} onClick={() => setLayout("grid")} title="Grid">

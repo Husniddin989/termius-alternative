@@ -1,4 +1,4 @@
-import { ServerGlyph } from "./icons";
+import { ServerGlyph, TerminalIcon } from "./icons";
 
 /** Badge colours per distribution id from /etc/os-release. */
 const OS_COLORS: Record<string, string> = {
@@ -18,6 +18,7 @@ const OS_COLORS: Record<string, string> = {
   kali: "#367bf0",
   freebsd: "#ab2b28",
   darwin: "#8e8e93",
+  local: "#475569",
 };
 
 const UNKNOWN = "#3d6bdc";
@@ -33,9 +34,13 @@ export function OsIcon({ os, size = 40 }: Props) {
     <span
       className="os-icon"
       style={{ width: size, height: size, background: color }}
-      title={os ?? "Unknown OS — detected on first connect"}
+      title={os === "local" ? "This computer" : (os ?? "Unknown OS — detected on first connect")}
     >
-      <ServerGlyph size={Math.round(size * 0.55)} strokeWidth={2} />
+      {os === "local" ? (
+        <TerminalIcon size={Math.round(size * 0.6)} strokeWidth={2} />
+      ) : (
+        <ServerGlyph size={Math.round(size * 0.55)} strokeWidth={2} />
+      )}
     </span>
   );
 }

@@ -7,6 +7,8 @@ import {
   type Host,
   hostsApi,
   secretsApi,
+  type Settings,
+  settingsApi,
   type Snippet,
   snippetsApi,
   SshSession,
@@ -18,6 +20,8 @@ import { SftpPage } from "./components/SftpPage";
 import { SnippetsPage } from "./components/SnippetsPage";
 import { ForwardsPage } from "./components/ForwardsPage";
 import { KnownHostsPage } from "./components/KnownHostsPage";
+import { SettingsPage } from "./components/SettingsPage";
+import { LIBRARY_SNIPPETS } from "./snippetLibrary";
 import { OsIcon } from "./components/OsIcon";
 import {
   CloseIcon,
@@ -26,7 +30,9 @@ import {
   ForwardIcon,
   HostsIcon,
   PlusIcon,
+  SettingsIcon,
   SnippetIcon,
+  TerminalIcon,
   VaultIcon,
 } from "./components/icons";
 import { forgetSessionAuth, useConnector } from "./useConnector";
@@ -45,6 +51,7 @@ const SECTIONS = [
   { key: "forwards", label: "Port Forwarding", icon: ForwardIcon },
   { key: "snippets", label: "Snippets", icon: SnippetIcon },
   { key: "known", label: "Known Hosts", icon: FingerprintIcon },
+  { key: "settings", label: "Settings", icon: SettingsIcon },
 ] as const;
 type Section = (typeof SECTIONS)[number]["key"];
 
@@ -62,6 +69,7 @@ export default function App() {
   const [details, setDetails] = useState<Host | null>(null);
   const [sftpRequest, setSftpRequest] = useState<{ host: Host; nonce: number } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [settings, setSettings] = useState<Settings>({ aiModel: "claude-opus-5-5", aiIncludeOutput: false, librarySeeded: true });
   const { connectWith, dialogs } = useConnector(hosts);
 
   const fail = (e: unknown) => setLoadError(String(e));
@@ -73,8 +81,19 @@ export default function App() {
   }, []);
   useEffect(() => {
     reloadHosts();
-    reloadSnippets();
     reloadRules();
+    // On first start, fill Snippets with the built-in command library.
+    settingsApi
+      .get()
+      .then(async (s) => {
+        setSettings(s);
+        if (!s.librarySeeded) {
+          await snippetsApi.seed(LIBRARY_SNIPPETS);
+          setSettings({ ...s, librarySeeded: true });
+        }
+      })
+      .catch(fail)
+      .finally(reloadSnippets);
   }, [reloadHosts, reloadSnippets, reloadRules]);
 
   // ---- Hosts ----------------------------------------------------------------
@@ -113,6 +132,16 @@ export default function App() {
     if (host.id && session.os && session.os !== host.os) {
       await hostsApi.save({ ...host, os: session.os });
       reloadHosts();
+    }
+  };
+
+  const openLocalTerminal = async () => {
+    try {
+      const session = await SshSession.openLocal();
+      setTabs((t) => [...t, { key: session.id, title: "Local", os: "local", session, closed: false }]);
+      setActive(session.id);
+    } catch (e) {
+      await message(String(e), { title: "Local terminal", kind: "error" });
     }
   };
 
@@ -180,6 +209,9 @@ export default function App() {
               </button>
             </div>
           ))}
+          <button className="icon-btn new-tab" title="Local terminal" onClick={openLocalTerminal}>
+            <TerminalIcon size={16} />
+          </button>
           <button
             className="icon-btn new-tab"
             title="New connection"
@@ -218,6 +250,7 @@ export default function App() {
                   onDuplicate={duplicateHost}
                   onDelete={deleteHost}
                   onQuickConnect={openTerminal}
+                  onLocalTerminal={openLocalTerminal}
                 />
                 {details && (
                   <HostDetails
@@ -244,6 +277,9 @@ export default function App() {
             )}
             {section === "snippets" && <SnippetsPage snippets={snippets} onChanged={reloadSnippets} />}
             {section === "known" && <KnownHostsPage active={active === HOME && section === "known"} />}
+            {section === "settings" && (
+              <SettingsPage settings={settings} onSettingsChange={setSettings} onSnippetsChanged={reloadSnippets} />
+            )}
           </main>
         </div>
 
@@ -257,7 +293,9 @@ export default function App() {
             session={tab.session}
             active={active === tab.key}
             snippets={snippets}
+            includeOutput={settings.aiIncludeOutput}
             onClosed={() => markClosed(tab.key)}
+            onSnippetSaved={reloadSnippets}
           />
         ))}
       </div>

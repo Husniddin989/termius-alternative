@@ -65,6 +65,8 @@ pub struct Snippet {
     pub id: String,
     pub name: String,
     pub command: String,
+    #[serde(default)]
+    pub category: Option<String>,
 }
 record!(Snippet);
 
@@ -128,6 +130,25 @@ impl<T: Record> JsonStore<T> {
         Ok(item)
     }
 
+    /// Appends the items that `is_dup` doesn't match against an existing one,
+    /// assigning ids, and returns how many were added.
+    pub fn extend(&self, items: Vec<T>, is_dup: impl Fn(&T, &T) -> bool) -> anyhow::Result<usize> {
+        let mut existing = self.list()?;
+        let mut added = 0;
+        for mut item in items {
+            if existing.iter().any(|e| is_dup(e, &item)) {
+                continue;
+            }
+            item.set_id(uuid::Uuid::new_v4().to_string());
+            existing.push(item);
+            added += 1;
+        }
+        if added > 0 {
+            self.write(&existing)?;
+        }
+        Ok(added)
+    }
+
     pub fn delete(&self, id: &str) -> anyhow::Result<()> {
         let mut items = self.list()?;
         items.retain(|i| i.id() != id);
@@ -180,6 +201,20 @@ mod tests {
 
         store.delete(&created.id).unwrap();
         assert!(store.list().unwrap().is_empty());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn extend_skips_duplicates() {
+        let dir = std::env::temp_dir().join(format!("store-test-{}", uuid::Uuid::new_v4()));
+        let store = JsonStore::<Snippet>::new(&dir, "snippets.json");
+        let snip = |cmd: &str| Snippet { id: String::new(), name: cmd.into(), command: cmd.into(), category: None };
+        let same_command = |a: &Snippet, b: &Snippet| a.command == b.command;
+        assert_eq!(store.extend(vec![snip("df -h"), snip("uptime")], same_command).unwrap(), 2);
+        assert_eq!(store.extend(vec![snip("df -h"), snip("free -m")], same_command).unwrap(), 1);
+        let all = store.list().unwrap();
+        assert_eq!(all.len(), 3);
+        assert!(all.iter().all(|s| !s.id.is_empty()));
         std::fs::remove_dir_all(dir).unwrap();
     }
 

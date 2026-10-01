@@ -12,7 +12,10 @@
 - 🧭 **Jump host** (ProxyJump) — boshqa saqlangan host orqali ulanish
 - 🛡  **Host key tekshiruvi** — yangi serverda fingerprint ko'rsatilib tasdiq so'raladi; kalit o'zgarsa ulanish rad etiladi
 - 🗂  **Ko'p tabli terminal** — xterm.js, 256 rang, avtomatik o'lcham
-- ⚡ **Snippets** — saqlangan buyruqlar, terminaldagi ⚡ tugmasidan bir bosishda ishga tushadi
+- 💻 **Lokal terminal** — kompyuteringizning o'z shell'i (zsh/bash/fish/PowerShell) alohida tabda
+- ⚡ **Snippets** — 127 ta tayyor buyruq (Linux, Docker, Git, systemd, tarmoq, DB, Kubernetes…) kategoriyalar bo'yicha; `<placeholder>` bor buyruqlar Enter'siz yoziladi
+- ⌨️ **Autocomplete** — terminalda yozayotganingizda tarix va snippetlardan taklif chiqadi, `→` bilan qabul qilinadi
+- ✨ **AI yordamchi** — ⌘K / Ctrl+Shift+K: istalgan tilda yozing ("eng katta fayllarni top"), Claude buyruqni tayyorlaydi; Insert / Run / Save as snippet. O'z Anthropic API kalitingiz bilan (Settings), kalit keychain'da saqlanadi
 - 📁 **SFTP** — ikki panel (Local | Remote): drag & drop bilan fayl ko'chirish (progress bilan), papka yaratish, nomini o'zgartirish, o'chirish
 - 🔏 **Known Hosts** — ishonilgan server kalitlarini ko'rish va o'chirish
 - 🔀 **Port forwarding** — local (`-L`) va dynamic SOCKS5 (`-D`), start/stop bilan
@@ -21,7 +24,7 @@
 
 - [ ] Remote port forwarding (`-R`)
 - [ ] Shifrlangan sinxronizatsiya (qurilmalar orasida)
-- [ ] Mobil (Android / iOS) — Tauri 2 mobile
+- [ ] Mobil (Android / iOS) — Tauri 2 mobile (lokal terminal faqat desktop'da, kod bunga tayyor)
 - [ ] Split-pane terminal, temalar
 
 ## Ishga tushirish
@@ -53,6 +56,8 @@ src/                      React UI
   App.tsx                 oyna: yuqori tablar (Home, SFTP, sessiyalar) + chap menyu
   api.ts                  Tauri buyruqlari + SshSession (stream buferi)
   useConnector.tsx        keychain → so'rov → qayta urinish oqimi
+  completion.ts           terminal qatorini kuzatish, tarix, autocomplete
+  snippetLibrary.ts       tayyor buyruqlar kutubxonasi
   components/
     HostsPage.tsx         qidiruv / tez ulanish, guruhlar, host kartalari
     HostDetails.tsx       o'ng panel: hostni tahrirlash va ulanish
@@ -61,6 +66,7 @@ src/                      React UI
     ForwardsPage.tsx      port forwarding qoidalari
     SnippetsPage.tsx      snippetlar
     KnownHostsPage.tsx    ishonilgan server kalitlari
+    SettingsPage.tsx      AI kaliti, model, kutubxona
 src-tauri/src/
   lib.rs                  Tauri buyruqlari
   conn.rs                 ulanish: auth (parol/kalit/agent), jump host, known_hosts
@@ -71,6 +77,9 @@ src-tauri/src/
   knownhosts.rs           known_hosts ro'yxati / o'chirish
   localfs.rs              lokal fayllar (SFTP chap paneli)
   secrets.rs              OS keychain (keyring)
+  pty.rs                  lokal terminal (portable-pty, faqat desktop)
+  ai.rs                   AI buyruq takliflari (Claude Messages API)
+  settings.rs             sozlamalar (model, AI va kutubxona)
   store.rs                hosts / snippets / forwards JSON saqlash
 ```
 

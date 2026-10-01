@@ -1,9 +1,12 @@
+mod ai;
 mod conn;
 mod forward;
 mod hostkey;
 mod knownhosts;
 mod localfs;
+mod pty;
 mod secrets;
+mod settings;
 mod sftp;
 mod ssh;
 mod store;
@@ -15,6 +18,8 @@ use std::sync::Arc;
 use conn::{ConnectContext, ConnectRequest};
 use forward::{ForwardManager, ForwardSpec};
 use hostkey::UiVerifier;
+use pty::LocalTerminals;
+use settings::Settings;
 use sftp::{Entry, Opened, Progress, SftpManager};
 use ssh::{SessionManager, SshEvent};
 use store::{ForwardRule, Host, JsonStore, Record, Snippet};
@@ -34,6 +39,8 @@ struct AppState {
     sessions: SessionManager,
     sftp: SftpManager,
     forwards: ForwardManager,
+    terms: LocalTerminals,
+    http: reqwest::Client,
 }
 
 impl AppState {
@@ -77,6 +84,21 @@ fn snippets_list(state: State<'_, AppState>) -> CmdResult<Vec<Snippet>> {
 #[tauri::command]
 fn snippets_save(state: State<'_, AppState>, snippet: Snippet) -> CmdResult<Snippet> {
     state.snippets().save(snippet).map_err(err)
+}
+
+/// Adds built-in library snippets that aren't saved yet (matched by command).
+#[tauri::command]
+fn snippets_seed(state: State<'_, AppState>, snippets: Vec<Snippet>) -> CmdResult<usize> {
+    let added = state
+        .snippets()
+        .extend(snippets, |a, b| a.command.trim() == b.command.trim())
+        .map_err(err)?;
+    let mut s = settings::load(&state.data_dir).map_err(err)?;
+    if !s.library_seeded {
+        s.library_seeded = true;
+        settings::save(&state.data_dir, &s).map_err(err)?;
+    }
+    Ok(added)
 }
 
 #[tauri::command]
@@ -143,6 +165,71 @@ fn local_home() -> String {
 #[tauri::command]
 fn local_list(path: String) -> CmdResult<Vec<Entry>> {
     localfs::list(path.as_ref()).map_err(err)
+}
+
+// ---- Settings & AI --------------------------------------------------------
+
+#[tauri::command]
+fn settings_get(state: State<'_, AppState>) -> CmdResult<Settings> {
+    settings::load(&state.data_dir).map_err(err)
+}
+
+#[tauri::command]
+fn settings_set(state: State<'_, AppState>, settings: Settings) -> CmdResult<()> {
+    settings::save(&state.data_dir, &settings).map_err(err)
+}
+
+#[tauri::command]
+fn ai_key_status() -> CmdResult<bool> {
+    Ok(secrets::get(ai::API_KEY_ACCOUNT).map_err(err)?.is_some())
+}
+
+/// Saves the API key in the keychain; an empty key removes it.
+#[tauri::command]
+fn ai_key_set(key: String) -> CmdResult<()> {
+    let key = key.trim();
+    if key.is_empty() {
+        secrets::delete(ai::API_KEY_ACCOUNT).map_err(err)
+    } else {
+        secrets::set(ai::API_KEY_ACCOUNT, key).map_err(err)
+    }
+}
+
+#[tauri::command]
+async fn ai_suggest(state: State<'_, AppState>, request: ai::SuggestRequest) -> CmdResult<ai::Suggestion> {
+    let key = secrets::get(ai::API_KEY_ACCOUNT)
+        .map_err(err)?
+        .ok_or("Add your Anthropic API key in Settings to use AI suggestions.")?;
+    let model = settings::load(&state.data_dir).map_err(err)?.ai_model;
+    ai::suggest(&state.http, &key, &model, &request).await.map_err(err)
+}
+
+// ---- Local terminal ---------------------------------------------------------
+
+#[tauri::command]
+async fn pty_open(
+    state: State<'_, AppState>,
+    cols: u32,
+    rows: u32,
+    on_event: Channel<SshEvent>,
+) -> CmdResult<String> {
+    state.terms.open(cols, rows, on_event).map_err(err)
+}
+
+#[tauri::command]
+async fn pty_write(state: State<'_, AppState>, id: String, data: Vec<u8>) -> CmdResult<()> {
+    state.terms.write(&id, &data).map_err(err)
+}
+
+#[tauri::command]
+async fn pty_resize(state: State<'_, AppState>, id: String, cols: u32, rows: u32) -> CmdResult<()> {
+    state.terms.resize(&id, cols, rows).map_err(err)
+}
+
+#[tauri::command]
+async fn pty_close(state: State<'_, AppState>, id: String) -> CmdResult<()> {
+    state.terms.close(&id);
+    Ok(())
 }
 
 // ---- Terminal -------------------------------------------------------------
@@ -305,6 +392,10 @@ pub fn run() {
                 sessions: SessionManager::default(),
                 sftp: SftpManager::default(),
                 forwards: ForwardManager::default(),
+                terms: LocalTerminals::default(),
+                http: reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(90))
+                    .build()?,
             });
             Ok(())
         })
@@ -315,6 +406,16 @@ pub fn run() {
             snippets_list,
             snippets_save,
             snippets_delete,
+            snippets_seed,
+            settings_get,
+            settings_set,
+            ai_key_status,
+            ai_key_set,
+            ai_suggest,
+            pty_open,
+            pty_write,
+            pty_resize,
+            pty_close,
             forwards_list,
             forwards_save,
             forwards_delete,

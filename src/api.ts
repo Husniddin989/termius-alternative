@@ -21,6 +21,19 @@ export interface Snippet {
   id: string;
   name: string;
   command: string;
+  category?: string | null;
+}
+
+export interface Settings {
+  aiModel: string;
+  aiIncludeOutput: boolean;
+  librarySeeded: boolean;
+}
+
+export interface AiSuggestion {
+  command: string;
+  explanation: string;
+  dangerous: boolean;
 }
 
 export type ForwardKind = "local" | "dynamic";
@@ -92,7 +105,24 @@ function crud<T>(noun: string, key: string) {
 }
 
 export const hostsApi = crud<Host>("hosts", "host");
-export const snippetsApi = crud<Snippet>("snippets", "snippet");
+export const snippetsApi = {
+  ...crud<Snippet>("snippets", "snippet"),
+  /** Adds the snippets whose command isn't saved yet; returns how many were added. */
+  seed: (snippets: Snippet[]) => invoke<number>("snippets_seed", { snippets }),
+};
+
+export const settingsApi = {
+  get: () => invoke<Settings>("settings_get"),
+  set: (settings: Settings) => invoke<void>("settings_set", { settings }),
+};
+
+export const aiApi = {
+  hasKey: () => invoke<boolean>("ai_key_status"),
+  /** An empty key removes the stored one. */
+  setKey: (key: string) => invoke<void>("ai_key_set", { key }),
+  suggest: (request: { prompt: string; os: string | null; currentLine: string | null; recentOutput: string | null }) =>
+    invoke<AiSuggestion>("ai_suggest", { request }),
+};
 export const forwardsApi = crud<ForwardRule>("forwards", "rule");
 
 export const secretsApi = {
@@ -153,9 +183,13 @@ export interface SessionListener {
   onClosed(reason: string | null): void;
 }
 
+/** Command prefix of the backend that owns a shell: remote SSH or local PTY. */
+type ShellBackend = "ssh" | "pty";
+
 /**
- * A live SSH shell. Output that arrives before a terminal is attached is
- * buffered, so the session can be opened before its tab is rendered.
+ * A live shell — remote over SSH or local in a PTY. Output that arrives
+ * before a terminal is attached is buffered, so the session can be opened
+ * before its tab is rendered.
  */
 export class SshSession {
   private listener: SessionListener | null = null;
@@ -164,9 +198,22 @@ export class SshSession {
 
   private constructor(
     public readonly id: string,
-    /** Remote OS detected while connecting, if any. */
+    /** Remote OS detected while connecting, "local" for a local shell, or null. */
     public readonly os: string | null,
+    private readonly backend: ShellBackend = "ssh",
   ) {}
+
+  /** Opens the user's own shell on this computer. */
+  static async openLocal(cols = 120, rows = 32): Promise<SshSession> {
+    let session: SshSession | null = null;
+    const early: SshEvent[] = [];
+    const channel = new Channel<SshEvent>();
+    channel.onmessage = (msg) => (session ? session.handle(msg) : early.push(msg));
+    const id = await invoke<string>("pty_open", { cols, rows, onEvent: channel });
+    session = new SshSession(id, "local", "pty");
+    early.forEach((msg) => session!.handle(msg));
+    return session;
+  }
 
   static async open(request: ConnectRequest, cols = 120, rows = 32): Promise<SshSession> {
     let session: SshSession | null = null;
@@ -209,14 +256,14 @@ export class SshSession {
 
   write(text: string) {
     const data = Array.from(new TextEncoder().encode(text));
-    return invoke("ssh_write", { id: this.id, data });
+    return invoke(`${this.backend}_write`, { id: this.id, data });
   }
 
   resize(cols: number, rows: number) {
-    return invoke("ssh_resize", { id: this.id, cols, rows });
+    return invoke(`${this.backend}_resize`, { id: this.id, cols, rows });
   }
 
   close() {
-    return invoke("ssh_close", { id: this.id });
+    return invoke(`${this.backend}_close`, { id: this.id });
   }
 }

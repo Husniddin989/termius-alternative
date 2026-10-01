@@ -1002,3 +1002,234 @@ input::-webkit-inner-spin-button {
   border: 1px solid var(--accent);
   border-radius: 10px;
 }
+
+/* ---- Terminal extras: buttons, completion popup, AI bar -------------------- */
+
+.term-buttons {
+  position: absolute;
+  top: 10px;
+  right: 18px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+}
+.term-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  opacity: 0.6;
+}
+.term-btn:hover {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.completion {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  max-width: min(640px, 90%);
+  padding: 4px;
+  background: var(--surface-3);
+  border: 1px solid #333a46;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+.completion.above {
+  transform: translateY(-100%) translateY(-4px);
+}
+.completion button {
+  justify-content: flex-start;
+  gap: 0;
+  padding: 5px 8px;
+  overflow: hidden;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  font-weight: 400;
+  white-space: pre;
+  text-overflow: ellipsis;
+  border-radius: 5px;
+}
+.completion button:hover,
+.completion button.first {
+  background: #2f3540;
+}
+.completion .typed {
+  color: var(--muted);
+}
+.completion .rest {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+}
+.completion kbd {
+  margin-left: auto;
+  padding: 0 6px;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--accent);
+  border: 1px solid var(--accent-soft);
+  border-radius: 4px;
+}
+
+.ai-bar {
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  left: 18px;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+.ai-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-input input {
+  padding: 8px 4px;
+  background: transparent;
+  border: none;
+}
+.ai-mark {
+  flex: none;
+  margin-left: 4px;
+  color: var(--accent);
+}
+.ai-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--input);
+  border-radius: 8px;
+}
+.ai-result code {
+  font-size: 13.5px;
+  color: var(--accent);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ai-result code.danger {
+  color: #fbbf24;
+}
+.ai-result .warn {
+  color: #fbbf24;
+}
+.ai-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---- Settings -------------------------------------------------------------- */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 760px;
+}
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  background: var(--surface-2);
+  border-radius: 12px;
+}
+.settings-card h2 {
+  font-size: 15px;
+  font-weight: 600;
+}
+.setting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.setting > span:first-child {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.setting-row {
+  display: flex;
+  gap: 8px;
+}
+.setting-row .field {
+  flex: 1;
+}
+.setting.check {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+.setting.check input {
+  width: auto;
+  margin-top: 3px;
+}
+.setting.check > span:first-child,
+.setting.check span {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+}
+.block {
+  display: block;
+  margin-top: 2px;
+}
+.setting.check .muted {
+  color: var(--muted);
+}
+.notice {
+  padding: 10px 12px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 8px;
+}
+
+/* ---- Snippet filters --------------------------------------------------------- */
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.filters .search {
+  max-width: 420px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.chip:hover {
+  color: var(--text);
+}
+.chip.on {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
