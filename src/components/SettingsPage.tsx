@@ -13,7 +13,9 @@ import {
 import { LIBRARY_SNIPPETS } from "../snippetLibrary";
 import { AUTO, resolveTheme, type Theme, THEMES } from "../themes";
 import { IS_MOBILE } from "../platform";
+import type { SyncControl } from "../useSync";
 import { Field } from "./DetailsPanel";
+import { SyncSettings } from "./SyncSettings";
 import { DownloadIcon, EyeIcon, EyeOffIcon, KeyIcon, RefreshIcon } from "./icons";
 
 const CLAUDE_MODELS = [
@@ -39,9 +41,10 @@ interface Props {
   settings: Settings;
   onSettingsChange: (s: Settings) => void;
   onSnippetsChanged: () => void;
+  sync: SyncControl;
 }
 
-export function SettingsPage({ settings, onSettingsChange, onSnippetsChanged }: Props) {
+export function SettingsPage({ settings, onSettingsChange, onSnippetsChanged, sync }: Props) {
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
 
   const update = async (patch: Partial<Settings>) => {
@@ -65,6 +68,8 @@ export function SettingsPage({ settings, onSettingsChange, onSnippetsChanged }: 
       </div>
       <div className="page-scroll settings">
         {note && <p className={note.error ? "error" : "notice"}>{note.text}</p>}
+
+        <SyncSettings sync={sync} onNote={(text) => setNote({ text })} />
 
         <section className="settings-card">
           <h2>Appearance</h2>

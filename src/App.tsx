@@ -38,6 +38,7 @@ import {
 } from "./components/icons";
 import { forgetSessionAuth, useConnector } from "./useConnector";
 import { IS_MOBILE } from "./platform";
+import { useSync } from "./useSync";
 import "./App.css";
 
 interface TerminalTab {
@@ -120,6 +121,12 @@ export default function App() {
       .catch(fail)
       .finally(reloadSnippets);
   }, [reloadHosts, reloadSnippets, reloadRules]);
+
+  const sync = useSync(() => {
+    reloadHosts();
+    reloadSnippets();
+    reloadRules();
+  });
 
   // ---- Hosts ----------------------------------------------------------------
 
@@ -307,7 +314,12 @@ export default function App() {
             {section === "snippets" && <SnippetsPage snippets={snippets} onChanged={reloadSnippets} />}
             {section === "known" && <KnownHostsPage active={active === HOME && section === "known"} />}
             {section === "settings" && (
-              <SettingsPage settings={settings} onSettingsChange={setSettings} onSnippetsChanged={reloadSnippets} />
+              <SettingsPage
+                settings={settings}
+                onSettingsChange={setSettings}
+                onSnippetsChanged={reloadSnippets}
+                sync={sync}
+              />
             )}
           </main>
         </div>

@@ -9,6 +9,7 @@ mod pty;
 mod secrets;
 mod settings;
 mod sftp;
+mod sync;
 mod ssh;
 mod store;
 
@@ -42,6 +43,8 @@ struct AppState {
     forwards: ForwardManager,
     terms: LocalTerminals,
     http: reqwest::Client,
+    /// One sync round at a time.
+    sync_lock: tokio::sync::Mutex<()>,
 }
 
 impl AppState {
@@ -74,7 +77,8 @@ fn hosts_save(state: State<'_, AppState>, host: Host) -> CmdResult<Host> {
 #[tauri::command]
 fn hosts_delete(state: State<'_, AppState>, id: String) -> CmdResult<()> {
     let _ = secrets::delete(&id);
-    state.hosts().delete(&id).map_err(err)
+    state.hosts().delete(&id).map_err(err)?;
+    sync::record_deletion(&state.data_dir, &id).map_err(err)
 }
 
 #[tauri::command]
@@ -104,7 +108,8 @@ fn snippets_seed(state: State<'_, AppState>, snippets: Vec<Snippet>) -> CmdResul
 
 #[tauri::command]
 fn snippets_delete(state: State<'_, AppState>, id: String) -> CmdResult<()> {
-    state.snippets().delete(&id).map_err(err)
+    state.snippets().delete(&id).map_err(err)?;
+    sync::record_deletion(&state.data_dir, &id).map_err(err)
 }
 
 #[tauri::command]
@@ -120,7 +125,8 @@ fn forwards_save(state: State<'_, AppState>, rule: ForwardRule) -> CmdResult<For
 #[tauri::command]
 async fn forwards_delete(state: State<'_, AppState>, id: String) -> CmdResult<()> {
     state.forwards.stop(&id).await;
-    state.forward_rules().delete(&id).map_err(err)
+    state.forward_rules().delete(&id).map_err(err)?;
+    sync::record_deletion(&state.data_dir, &id).map_err(err)
 }
 
 // ---- Keychain & host keys -------------------------------------------------
@@ -131,13 +137,113 @@ fn secret_get(host_id: String) -> CmdResult<Option<String>> {
 }
 
 #[tauri::command]
-fn secret_set(host_id: String, secret: String) -> CmdResult<()> {
-    secrets::set(&host_id, &secret).map_err(err)
+fn secret_set(state: State<'_, AppState>, host_id: String, secret: String) -> CmdResult<()> {
+    if secrets::get(&host_id).map_err(err)?.as_deref() == Some(secret.as_str()) {
+        return Ok(());
+    }
+    secrets::set(&host_id, &secret).map_err(err)?;
+    sync::record_secret_change(&state.data_dir, &host_id).map_err(err)
 }
 
 #[tauri::command]
-fn secret_delete(host_id: String) -> CmdResult<()> {
-    secrets::delete(&host_id).map_err(err)
+fn secret_delete(state: State<'_, AppState>, host_id: String) -> CmdResult<()> {
+    secrets::delete(&host_id).map_err(err)?;
+    sync::record_secret_deletion(&state.data_dir, &host_id).map_err(err)
+}
+
+// ---- Sync -----------------------------------------------------------------------
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SyncStatus {
+    enabled: bool,
+    login: Option<String>,
+    last_sync: Option<i64>,
+    last_error: Option<String>,
+}
+
+fn sync_status_of(dir: &std::path::Path) -> anyhow::Result<SyncStatus> {
+    let meta = sync::load_meta(dir)?;
+    let enabled = meta.login.is_some() && secrets::get(sync::TOKEN_ACCOUNT)?.is_some();
+    Ok(SyncStatus {
+        enabled,
+        login: meta.login,
+        last_sync: meta.last_sync,
+        last_error: meta.last_error,
+    })
+}
+
+#[tauri::command]
+fn sync_status(state: State<'_, AppState>) -> CmdResult<SyncStatus> {
+    sync_status_of(&state.data_dir).map_err(err)
+}
+
+/// Connects this device to the vault in the user's GitHub account (creating it
+/// on the first device) and runs the first sync.
+#[tauri::command]
+async fn sync_setup(state: State<'_, AppState>, token: String, passphrase: String) -> CmdResult<sync::SyncReport> {
+    let token = token.trim().to_string();
+    if token.is_empty() {
+        return Err("Paste a GitHub token.".into());
+    }
+    if passphrase.chars().count() < 8 {
+        return Err("Use a sync password of at least 8 characters.".into());
+    }
+    let _guard = state.sync_lock.lock().await;
+    let gh = sync::GitHub { http: &state.http, api: sync::GITHUB_API, token: &token };
+    let (login, gist_id) = sync::check_setup(&gh, &passphrase).await.map_err(err)?;
+    secrets::set(sync::TOKEN_ACCOUNT, &token).map_err(err)?;
+    secrets::set(sync::PASSPHRASE_ACCOUNT, &passphrase).map_err(err)?;
+    let mut meta = sync::load_meta(&state.data_dir).map_err(err)?;
+    meta.login = Some(login);
+    meta.gist_id = gist_id;
+    sync::save_meta(&state.data_dir, &meta).map_err(err)?;
+    run_sync(&state, &gh, &passphrase).await
+}
+
+async fn run_sync(state: &AppState, gh: &sync::GitHub<'_>, passphrase: &str) -> CmdResult<sync::SyncReport> {
+    match sync::sync(&state.data_dir, &sync::Keychain, gh, passphrase).await {
+        Ok(report) => Ok(report),
+        Err(e) => {
+            let message = err(e);
+            let _ = sync::load_meta(&state.data_dir).and_then(|mut m| {
+                m.last_error = Some(message.clone());
+                sync::save_meta(&state.data_dir, &m)
+            });
+            Err(message)
+        }
+    }
+}
+
+/// One sync round. Returns None when sync is not set up on this device.
+#[tauri::command]
+async fn sync_now(state: State<'_, AppState>) -> CmdResult<Option<sync::SyncReport>> {
+    let _guard = state.sync_lock.lock().await;
+    if sync::load_meta(&state.data_dir).map_err(err)?.login.is_none() {
+        return Ok(None);
+    }
+    let (Some(token), Some(passphrase)) = (
+        secrets::get(sync::TOKEN_ACCOUNT).map_err(err)?,
+        secrets::get(sync::PASSPHRASE_ACCOUNT).map_err(err)?,
+    ) else {
+        return Ok(None);
+    };
+    let gh = sync::GitHub { http: &state.http, api: sync::GITHUB_API, token: &token };
+    run_sync(&state, &gh, &passphrase).await.map(Some)
+}
+
+/// Turns sync off on this device. Local data and the gist are kept.
+#[tauri::command]
+async fn sync_disable(state: State<'_, AppState>) -> CmdResult<()> {
+    let _guard = state.sync_lock.lock().await;
+    secrets::delete(sync::TOKEN_ACCOUNT).map_err(err)?;
+    secrets::delete(sync::PASSPHRASE_ACCOUNT).map_err(err)?;
+    let mut meta = sync::load_meta(&state.data_dir).map_err(err)?;
+    meta.login = None;
+    meta.gist_id = None;
+    meta.last_sync = None;
+    meta.last_error = None;
+    sync::save_meta(&state.data_dir, &meta).map_err(err)
 }
 
 #[tauri::command]
@@ -424,6 +530,7 @@ pub fn run() {
                 http: reqwest::Client::builder()
                     .connect_timeout(std::time::Duration::from_secs(10))
                     .build()?,
+                sync_lock: tokio::sync::Mutex::new(()),
             });
             Ok(())
         })
@@ -452,6 +559,10 @@ pub fn run() {
             secret_get,
             secret_set,
             secret_delete,
+            sync_status,
+            sync_setup,
+            sync_now,
+            sync_disable,
             host_key_respond,
             known_hosts_list,
             known_hosts_remove,

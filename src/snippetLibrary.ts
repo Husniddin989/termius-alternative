@@ -167,8 +167,14 @@ const LIBRARY: Record<string, [name: string, command: string][]> = {
   ],
 };
 
+/** Stable ids, so the same built-in snippet is one record on every synced device. */
+function libraryId(category: string, name: string) {
+  const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return `lib-${slug(category)}-${slug(name)}`;
+}
+
 export const LIBRARY_SNIPPETS: Snippet[] = Object.entries(LIBRARY).flatMap(([category, items]) =>
-  items.map(([name, command]) => ({ id: "", name, command, category })),
+  items.map(([name, command]) => ({ id: libraryId(category, name), name, command, category })),
 );
 
 /** True when the command has `<placeholder>` parts the user should fill in first. */

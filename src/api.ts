@@ -102,11 +102,21 @@ export interface Progress {
   total: number;
 }
 
+/** Fired after anything that syncs was changed on this device. */
+export const LOCAL_CHANGE_EVENT = "app:local-change";
+
+function changed<T>(result: Promise<T>): Promise<T> {
+  return result.then((value) => {
+    window.dispatchEvent(new Event(LOCAL_CHANGE_EVENT));
+    return value;
+  });
+}
+
 function crud<T>(noun: string, key: string) {
   return {
     list: () => invoke<T[]>(`${noun}_list`),
-    save: (item: T) => invoke<T>(`${noun}_save`, { [key]: item }),
-    remove: (id: string) => invoke<void>(`${noun}_delete`, { id }),
+    save: (item: T) => changed(invoke<T>(`${noun}_save`, { [key]: item })),
+    remove: (id: string) => changed(invoke<void>(`${noun}_delete`, { id })),
   };
 }
 
@@ -114,7 +124,7 @@ export const hostsApi = crud<Host>("hosts", "host");
 export const snippetsApi = {
   ...crud<Snippet>("snippets", "snippet"),
   /** Adds the snippets whose command isn't saved yet; returns how many were added. */
-  seed: (snippets: Snippet[]) => invoke<number>("snippets_seed", { snippets }),
+  seed: (snippets: Snippet[]) => changed(invoke<number>("snippets_seed", { snippets })),
 };
 
 export const settingsApi = {
@@ -153,8 +163,32 @@ export const forwardsApi = crud<ForwardRule>("forwards", "rule");
 
 export const secretsApi = {
   get: (hostId: string) => invoke<string | null>("secret_get", { hostId }),
-  set: (hostId: string, secret: string) => invoke<void>("secret_set", { hostId, secret }),
-  remove: (hostId: string) => invoke<void>("secret_delete", { hostId }),
+  set: (hostId: string, secret: string) => changed(invoke<void>("secret_set", { hostId, secret })),
+  remove: (hostId: string) => changed(invoke<void>("secret_delete", { hostId })),
+};
+
+export interface SyncStatus {
+  enabled: boolean;
+  /** GitHub account holding the vault. */
+  login: string | null;
+  lastSync: number | null;
+  lastError: string | null;
+}
+
+export interface SyncReport {
+  /** Something on this device was updated from the vault. */
+  changed: boolean;
+  pushed: boolean;
+  hosts: number;
+  at: number;
+}
+
+export const syncApi = {
+  status: () => invoke<SyncStatus>("sync_status"),
+  setup: (token: string, passphrase: string) => invoke<SyncReport>("sync_setup", { token, passphrase }),
+  /** Returns null when sync is off on this device. */
+  now: () => invoke<SyncReport | null>("sync_now"),
+  disable: () => invoke<void>("sync_disable"),
 };
 
 export const hostKeyApi = {
