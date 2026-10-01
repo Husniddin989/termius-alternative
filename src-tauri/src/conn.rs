@@ -129,6 +129,38 @@ pub struct Connection {
 }
 
 impl Connection {
+    /// Best-effort guess of the remote OS: the `ID` from /etc/os-release
+    /// (lowercased), or the kernel name from `uname` on systems without it.
+    pub async fn detect_os(&self) -> Option<String> {
+        let probe = async {
+            let mut channel = self.handle.channel_open_session().await.ok()?;
+            channel
+                .exec(
+                    true,
+                    "sh -c '. /etc/os-release 2>/dev/null && echo \"$ID\" || uname -s'",
+                )
+                .await
+                .ok()?;
+            let mut out = Vec::new();
+            while let Some(msg) = channel.wait().await {
+                match msg {
+                    russh::ChannelMsg::Data { data } => out.extend_from_slice(&data),
+                    russh::ChannelMsg::Eof | russh::ChannelMsg::Close => break,
+                    _ => {}
+                }
+            }
+            let id = String::from_utf8_lossy(&out).trim().to_lowercase();
+            let valid = !id.is_empty()
+                && id.len() <= 32
+                && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+            valid.then_some(id)
+        };
+        tokio::time::timeout(Duration::from_secs(4), probe)
+            .await
+            .ok()
+            .flatten()
+    }
+
     pub async fn disconnect(&self) {
         let _ = self
             .handle

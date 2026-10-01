@@ -6,44 +6,66 @@ import {
   forwardsApi,
   type Host,
   hostsApi,
+  secretsApi,
   type Snippet,
-  sftpApi,
   snippetsApi,
   SshSession,
 } from "./api";
-import { HostList } from "./components/HostList";
-import { HostForm } from "./components/HostForm";
+import { HostsPage } from "./components/HostsPage";
+import { emptyHost, HostDetails } from "./components/HostDetails";
 import { TerminalView } from "./components/TerminalView";
-import { SftpView } from "./components/SftpView";
-import { SnippetsView } from "./components/SnippetsView";
-import { ForwardsView } from "./components/ForwardsView";
+import { SftpPage } from "./components/SftpPage";
+import { SnippetsPage } from "./components/SnippetsPage";
+import { ForwardsPage } from "./components/ForwardsPage";
+import { KnownHostsPage } from "./components/KnownHostsPage";
+import { OsIcon } from "./components/OsIcon";
+import {
+  CloseIcon,
+  FingerprintIcon,
+  FolderIcon,
+  ForwardIcon,
+  HostsIcon,
+  PlusIcon,
+  SnippetIcon,
+  VaultIcon,
+} from "./components/icons";
 import { useConnector } from "./useConnector";
 import "./App.css";
 
-type Tab =
-  | { kind: "terminal"; key: string; title: string; session: SshSession; closed: boolean }
-  | { kind: "sftp"; key: string; title: string; sftpId: string; home: string };
+interface TerminalTab {
+  key: string;
+  title: string;
+  os: string | null;
+  session: SshSession;
+  closed: boolean;
+}
 
-const VIEWS = [
-  { key: "hosts", label: "Hosts" },
-  { key: "snippets", label: "Snippets" },
-  { key: "forwards", label: "Port Forwarding" },
+const SECTIONS = [
+  { key: "hosts", label: "Hosts", icon: HostsIcon },
+  { key: "forwards", label: "Port Forwarding", icon: ForwardIcon },
+  { key: "snippets", label: "Snippets", icon: SnippetIcon },
+  { key: "known", label: "Known Hosts", icon: FingerprintIcon },
 ] as const;
-type View = (typeof VIEWS)[number]["key"];
+type Section = (typeof SECTIONS)[number]["key"];
+
+const HOME = "home";
+const SFTP = "sftp";
 
 export default function App() {
   const [hosts, setHosts] = useState<Host[]>([]);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [rules, setRules] = useState<ForwardRule[]>([]);
   const [activeForwards, setActiveForwards] = useState<Record<string, string>>({});
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [active, setActive] = useState<string>("hosts");
-  const [editing, setEditing] = useState<Host | "new" | null>(null);
+  const [tabs, setTabs] = useState<TerminalTab[]>([]);
+  const [active, setActive] = useState<string>(HOME);
+  const [section, setSection] = useState<Section>("hosts");
+  const [details, setDetails] = useState<Host | null>(null);
+  const [sftpRequest, setSftpRequest] = useState<{ host: Host; nonce: number } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { connectWith, dialogs } = useConnector(hosts);
 
   const fail = (e: unknown) => setLoadError(String(e));
-  const reloadHosts = useCallback(() => void hostsApi.list().then(setHosts, fail), []);
+  const reloadHosts = useCallback(() => hostsApi.list().then(setHosts, fail), []);
   const reloadSnippets = useCallback(() => void snippetsApi.list().then(setSnippets, fail), []);
   const reloadRules = useCallback(() => {
     forwardsApi.list().then(setRules, fail);
@@ -55,10 +77,20 @@ export default function App() {
     reloadRules();
   }, [reloadHosts, reloadSnippets, reloadRules]);
 
-  const saveHost = async (host: Host) => {
-    await hostsApi.save(host);
-    setEditing(null);
-    reloadHosts();
+  // ---- Hosts ----------------------------------------------------------------
+
+  const saveHost = async (host: Host, secret: string | null) => {
+    const saved = await hostsApi.save(host);
+    if (secret !== null) await secretsApi.set(saved.id, secret);
+    await reloadHosts();
+    setDetails(saved);
+    return saved;
+  };
+
+  const duplicateHost = async (host: Host) => {
+    const copy = await hostsApi.save({ ...host, id: "", label: `${host.label} copy` });
+    await reloadHosts();
+    setDetails(copy);
   };
 
   const deleteHost = async (host: Host) => {
@@ -66,23 +98,28 @@ export default function App() {
     const note = dependants.length ? `\n\nIt is the jump host for: ${dependants.join(", ")}.` : "";
     if (!(await confirm(`Delete host "${host.label}"?${note}`, { kind: "warning" }))) return;
     await hostsApi.remove(host.id);
+    if (details?.id === host.id) setDetails(null);
     reloadHosts();
-  };
-
-  const addTab = (tab: Tab) => {
-    setTabs((t) => [...t, tab]);
-    setActive(tab.key);
   };
 
   const openTerminal = async (host: Host) => {
     const session = await connectWith(host, (req) => SshSession.open(req));
-    if (session) addTab({ kind: "terminal", key: session.id, title: host.label, session, closed: false });
+    if (!session) return;
+    const os = session.os ?? host.os ?? null;
+    setTabs((t) => [...t, { key: session.id, title: host.label, os, session, closed: false }]);
+    setActive(session.id);
+    if (host.id && session.os && session.os !== host.os) {
+      await hostsApi.save({ ...host, os: session.os });
+      reloadHosts();
+    }
   };
 
-  const openSftp = async (host: Host) => {
-    const opened = await connectWith(host, (req) => sftpApi.open(req));
-    if (opened) addTab({ kind: "sftp", key: opened.id, title: host.label, sftpId: opened.id, home: opened.home });
+  const openSftp = (host: Host) => {
+    setSftpRequest({ host, nonce: Date.now() });
+    setActive(SFTP);
   };
+
+  // ---- Port forwarding ------------------------------------------------------
 
   const startForward = async (rule: ForwardRule) => {
     const host = hosts.find((h) => h.id === rule.hostId);
@@ -98,97 +135,130 @@ export default function App() {
     reloadRules();
   };
 
+  // ---- Tabs -----------------------------------------------------------------
+
   const markClosed = useCallback((key: string) => {
-    setTabs((t) => t.map((tab) => (tab.key === key && tab.kind === "terminal" ? { ...tab, closed: true } : tab)));
+    setTabs((t) => t.map((tab) => (tab.key === key ? { ...tab, closed: true } : tab)));
   }, []);
 
   const closeTab = (key: string) => {
-    const tab = tabs.find((t) => t.key === key);
-    if (tab?.kind === "terminal") tab.session.close();
-    if (tab?.kind === "sftp") sftpApi.close(tab.sftpId);
+    tabs.find((t) => t.key === key)?.session.close();
     const rest = tabs.filter((t) => t.key !== key);
     setTabs(rest);
-    if (active === key) setActive(rest[rest.length - 1]?.key ?? "hosts");
+    if (active === key) setActive(rest[rest.length - 1]?.key ?? HOME);
   };
-
-  const view = VIEWS.find((v) => v.key === active)?.key as View | undefined;
 
   return (
     <div className="app">
-      <nav className="tabbar">
-        {VIEWS.map((v) => (
-          <button key={v.key} className={`tab ${active === v.key ? "active" : ""}`} onClick={() => setActive(v.key)}>
-            {v.label}
-          </button>
-        ))}
-        <span className="tab-sep" />
-        {tabs.map((tab) => (
-          <div
-            key={tab.key}
-            className={`tab ${active === tab.key ? "active" : ""} ${tab.kind === "terminal" && tab.closed ? "closed" : ""}`}
-            onClick={() => setActive(tab.key)}
-          >
-            {tab.kind === "terminal" ? <span className="dot" /> : <span className="tab-kind">SFTP</span>}
-            {tab.title}
-            <button
-              className="tab-close"
-              onClick={(e) => {
-                e.stopPropagation();
-                closeTab(tab.key);
-              }}
+      <nav className="topbar">
+        <button className={`tab fixed ${active === HOME ? "active" : ""}`} onClick={() => setActive(HOME)}>
+          <VaultIcon size={16} /> Home
+        </button>
+        <button className={`tab fixed ${active === SFTP ? "active" : ""}`} onClick={() => setActive(SFTP)}>
+          <FolderIcon size={16} /> SFTP
+        </button>
+        <div className="tab-strip">
+          {tabs.map((tab) => (
+            <div
+              key={tab.key}
+              className={`tab ${active === tab.key ? "active" : ""} ${tab.closed ? "closed" : ""}`}
+              onClick={() => setActive(tab.key)}
+              onMouseDown={(e) => e.button === 1 && closeTab(tab.key)}
             >
-              ×
-            </button>
-          </div>
-        ))}
+              <OsIcon os={tab.os} size={18} />
+              <span className="tab-title">{tab.title}</span>
+              <button
+                className="tab-close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeTab(tab.key);
+                }}
+              >
+                <CloseIcon size={13} />
+              </button>
+            </div>
+          ))}
+          <button
+            className="icon-btn new-tab"
+            title="New connection"
+            onClick={() => {
+              setSection("hosts");
+              setActive(HOME);
+            }}
+          >
+            <PlusIcon size={16} />
+          </button>
+        </div>
       </nav>
 
-      <main>
-        {loadError && view && <p className="error pad">{loadError}</p>}
-        {view === "hosts" && (
-          <HostList
-            hosts={hosts}
-            onAdd={() => setEditing("new")}
-            onEdit={setEditing}
-            onDelete={deleteHost}
-            onConnect={openTerminal}
-            onSftp={openSftp}
-          />
-        )}
-        {view === "snippets" && <SnippetsView snippets={snippets} onChanged={reloadSnippets} />}
-        {view === "forwards" && (
-          <ForwardsView
-            rules={rules}
-            hosts={hosts}
-            active={activeForwards}
-            onStart={startForward}
-            onStop={stopForward}
-            onChanged={reloadRules}
-          />
-        )}
-        {tabs.map((tab) =>
-          tab.kind === "terminal" ? (
-            <TerminalView
-              key={tab.key}
-              session={tab.session}
-              active={active === tab.key}
-              snippets={snippets}
-              onClosed={() => markClosed(tab.key)}
-            />
-          ) : (
-            <SftpView key={tab.key} sftpId={tab.sftpId} home={tab.home} active={active === tab.key} />
-          ),
-        )}
-      </main>
+      <div className="body">
+        <div className="home" hidden={active !== HOME}>
+          <aside className="sidebar">
+            {SECTIONS.map(({ key, label, icon: Icon }) => (
+              <button key={key} className={`nav-item ${section === key ? "active" : ""}`} onClick={() => setSection(key)}>
+                <Icon size={18} />
+                {label}
+              </button>
+            ))}
+          </aside>
 
-      {editing && (
-        <HostForm
-          initial={editing === "new" ? undefined : editing}
-          hosts={hosts}
-          onSave={saveHost}
-          onCancel={() => setEditing(null)}
-        />
-      )}
+          <main className="content">
+            {loadError && <p className="error banner">{loadError}</p>}
+            {section === "hosts" && (
+              <div className="with-details">
+                <HostsPage
+                  hosts={hosts}
+                  selectedId={details?.id || null}
+                  onSelect={setDetails}
+                  onConnect={openTerminal}
+                  onSftp={openSftp}
+                  onNew={(group) => setDetails({ ...emptyHost, group })}
+                  onDuplicate={duplicateHost}
+                  onDelete={deleteHost}
+                  onQuickConnect={openTerminal}
+                />
+                {details && (
+                  <HostDetails
+                    host={details}
+                    hosts={hosts}
+                    onSave={saveHost}
+                    onConnect={openTerminal}
+                    onDuplicate={duplicateHost}
+                    onDelete={deleteHost}
+                    onClose={() => setDetails(null)}
+                  />
+                )}
+              </div>
+            )}
+            {section === "forwards" && (
+              <ForwardsPage
+                rules={rules}
+                hosts={hosts}
+                active={activeForwards}
+                onStart={startForward}
+                onStop={stopForward}
+                onChanged={reloadRules}
+              />
+            )}
+            {section === "snippets" && <SnippetsPage snippets={snippets} onChanged={reloadSnippets} />}
+            {section === "known" && <KnownHostsPage active={active === HOME && section === "known"} />}
+          </main>
+        </div>
+
+        <div className="sftp-host" hidden={active !== SFTP}>
+          <SftpPage hosts={hosts} connectWith={connectWith} request={sftpRequest} />
+        </div>
+
+        {tabs.map((tab) => (
+          <TerminalView
+            key={tab.key}
+            session={tab.session}
+            active={active === tab.key}
+            snippets={snippets}
+            onClosed={() => markClosed(tab.key)}
+          />
+        ))}
+      </div>
       {dialogs}
     </div>
   );

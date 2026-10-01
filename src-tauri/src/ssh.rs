@@ -29,6 +29,13 @@ enum Command {
 
 type Sessions = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Command>>>>;
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Opened {
+    pub id: String,
+    pub os: Option<String>,
+}
+
 #[derive(Default)]
 pub struct SessionManager {
     sessions: Sessions,
@@ -42,8 +49,9 @@ impl SessionManager {
         cols: u32,
         rows: u32,
         on_event: Channel<SshEvent>,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<Opened> {
         let conn = establish(req, ctx).await?;
+        let os = conn.detect_os().await;
         let mut channel = conn.handle.channel_open_session().await?;
         channel
             .request_pty(false, "xterm-256color", cols, rows, 0, 0, &[])
@@ -91,7 +99,7 @@ impl SessionManager {
             let _ = on_event.send(SshEvent::Closed { reason });
         });
 
-        Ok(id)
+        Ok(Opened { id, os })
     }
 
     async fn send(&self, id: &str, cmd: Command) -> anyhow::Result<()> {
@@ -154,10 +162,11 @@ mod tests {
         let ctx = testing::context();
         let (channel, output) = collecting_channel();
         let manager = SessionManager::default();
-        let id = manager
+        let Opened { id, os } = manager
             .open(testing::request(), &ctx, 80, 24, channel)
             .await
             .unwrap();
+        assert!(os.is_some(), "OS not detected");
         manager.resize(&id, 100, 30).await.unwrap();
         manager
             .write(&id, b"stty size; echo hello-$((40+2)); exit\n".to_vec())
@@ -188,7 +197,7 @@ mod tests {
         req.jump = Some(testing::target_from_env());
         req.target.host = "localhost".into();
         let manager = SessionManager::default();
-        let id = manager.open(req, &ctx, 80, 24, channel).await.unwrap();
+        let id = manager.open(req, &ctx, 80, 24, channel).await.unwrap().id;
         manager
             .write(&id, b"echo via-$((1+1))-jump; exit\n".to_vec())
             .await

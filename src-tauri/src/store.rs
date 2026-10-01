@@ -52,6 +52,10 @@ pub struct Host {
     /// Another saved host to tunnel through (like OpenSSH `ProxyJump`).
     #[serde(default)]
     pub jump_host_id: Option<String>,
+    /// Distribution id from the server's /etc/os-release (e.g. "ubuntu"),
+    /// detected on connect and used for the host icon.
+    #[serde(default)]
+    pub os: Option<String>,
 }
 record!(Host);
 
@@ -156,6 +160,7 @@ mod tests {
             key_path: None,
             group: None,
             jump_host_id: None,
+            os: None,
         }
     }
 

@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import type { Snippet, SshSession } from "../api";
+import { BoltIcon, CloseIcon, SearchIcon } from "./icons";
 
 interface Props {
   session: SshSession;
@@ -13,19 +14,26 @@ interface Props {
 }
 
 export function TerminalView({ session, active, snippets, onClosed }: Props) {
-  const [paletteOpen, setPaletteOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const onClosedRef = useRef(onClosed);
   onClosedRef.current = onClosed;
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     const term = new Terminal({
       cursorBlink: true,
-      fontFamily: '"JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace',
+      fontFamily: '"JetBrains Mono", "SF Mono", Menlo, "Cascadia Code", Consolas, monospace',
       fontSize: 14,
-      theme: { background: "#141821", foreground: "#d8dee9", cursor: "#5ec4ff" },
+      lineHeight: 1.15,
+      theme: {
+        background: "#0f1115",
+        foreground: "#d6dae2",
+        cursor: "#2dd4bf",
+        selectionBackground: "#2dd4bf44",
+      },
       allowProposedApi: true,
     });
     const fit = new FitAddon();
@@ -64,32 +72,52 @@ export function TerminalView({ session, active, snippets, onClosed }: Props) {
       fitRef.current?.fit();
       termRef.current?.focus();
     }
-  }, [active]);
+  }, [active, panelOpen]);
 
   const runSnippet = (s: Snippet) => {
-    setPaletteOpen(false);
     session.write(s.command.replace(/\r?\n/g, "\r") + "\r");
     termRef.current?.focus();
   };
 
+  const filtered = snippets.filter((s) =>
+    [s.name, s.command].some((v) => v.toLowerCase().includes(query.toLowerCase())),
+  );
+
   return (
     <div className="terminal-wrap" hidden={!active}>
-      <div className="terminal" ref={containerRef} />
-      <div className="palette">
-        <button className="ghost" onClick={() => setPaletteOpen((o) => !o)} title="Snippets">
-          ⚡
-        </button>
-        {paletteOpen && (
-          <div className="palette-menu">
-            {snippets.length === 0 && <p className="muted">No snippets yet — add them in the Snippets tab.</p>}
-            {snippets.map((s) => (
-              <button key={s.id} className="ghost" onClick={() => runSnippet(s)} title={s.command}>
-                {s.name}
+      <div className="terminal-area">
+        <div className="term-host" ref={containerRef} />
+        {!panelOpen && (
+          <button className="snippet-toggle" onClick={() => setPanelOpen(true)} title="Snippets">
+            <BoltIcon size={16} />
+          </button>
+        )}
+      </div>
+      {panelOpen && (
+        <aside className="snippet-panel">
+          <header>
+            <strong>Snippets</strong>
+            <button className="icon-btn" onClick={() => setPanelOpen(false)} title="Close">
+              <CloseIcon size={16} />
+            </button>
+          </header>
+          <label className="field">
+            <span className="field-icon">
+              <SearchIcon size={15} />
+            </span>
+            <input placeholder="Filter" value={query} onChange={(e) => setQuery(e.target.value)} />
+          </label>
+          <div className="snippet-list">
+            {snippets.length === 0 && <p className="muted small">No snippets yet. Add some in the Snippets section.</p>}
+            {filtered.map((s) => (
+              <button key={s.id} className="snippet-item" onClick={() => runSnippet(s)} title="Run in this terminal">
+                <strong>{s.name}</strong>
+                <code>{s.command.split("\n")[0]}</code>
               </button>
             ))}
           </div>
-        )}
-      </div>
+        </aside>
+      )}
     </div>
   );
 }

@@ -20,10 +20,10 @@ export function HostKeyDialog({ prompt, onAccept, onReject }: Props) {
           <code>{prompt.fingerprint}</code>
         </div>
         <div className="actions">
-          <button className="ghost" onClick={onReject}>
+          <button className="secondary" onClick={onReject}>
             Reject
           </button>
-          <button onClick={onAccept} autoFocus>
+          <button className="primary" onClick={onAccept} autoFocus>
             Trust and continue
           </button>
         </div>

@@ -82,7 +82,7 @@ export function useConnector(hosts: Host[]) {
             target: toTarget(host, target),
             jump: jumpHost && jump ? toTarget(jumpHost, jump) : null,
           });
-          if (saveTarget !== null) await secretsApi.set(host.id, saveTarget).catch(() => {});
+          if (host.id && saveTarget !== null) await secretsApi.set(host.id, saveTarget).catch(() => {});
           if (jumpHost && saveJump !== null) await secretsApi.set(jumpHost.id, saveJump).catch(() => {});
           return result;
         } catch (e) {

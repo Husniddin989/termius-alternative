@@ -13,6 +13,8 @@ export interface Host {
   keyPath?: string | null;
   group?: string | null;
   jumpHostId?: string | null;
+  /** Distribution id detected on connect, e.g. "ubuntu". */
+  os?: string | null;
 }
 
 export interface Snippet {
@@ -69,6 +71,13 @@ export interface SftpEntry {
   permissions: number | null;
 }
 
+export interface KnownHost {
+  line: number;
+  host: string;
+  algorithm: string;
+  fingerprint: string;
+}
+
 export interface Progress {
   done: number;
   total: number;
@@ -96,6 +105,16 @@ export const hostKeyApi = {
   onPrompt: (cb: (p: HostKeyPrompt) => void): Promise<UnlistenFn> =>
     listen<HostKeyPrompt>("host-key-prompt", (e) => cb(e.payload)),
   respond: (id: string, accept: boolean) => invoke<void>("host_key_respond", { id, accept }),
+};
+
+export const knownHostsApi = {
+  list: () => invoke<KnownHost[]>("known_hosts_list"),
+  remove: (line: number) => invoke<void>("known_hosts_remove", { line }),
+};
+
+export const localApi = {
+  home: () => invoke<string>("local_home"),
+  list: (path: string) => invoke<SftpEntry[]>("local_list", { path }),
 };
 
 export const forwardApi = {
@@ -143,7 +162,11 @@ export class SshSession {
   private pending: Uint8Array[] = [];
   private closedReason: string | null | undefined = undefined;
 
-  private constructor(public readonly id: string) {}
+  private constructor(
+    public readonly id: string,
+    /** Remote OS detected while connecting, if any. */
+    public readonly os: string | null,
+  ) {}
 
   static async open(request: ConnectRequest, cols = 120, rows = 32): Promise<SshSession> {
     let session: SshSession | null = null;
@@ -151,8 +174,13 @@ export class SshSession {
     const channel = new Channel<SshEvent>();
     channel.onmessage = (msg) => (session ? session.handle(msg) : early.push(msg));
 
-    const id = await invoke<string>("ssh_connect", { request, cols, rows, onEvent: channel });
-    session = new SshSession(id);
+    const opened = await invoke<{ id: string; os: string | null }>("ssh_connect", {
+      request,
+      cols,
+      rows,
+      onEvent: channel,
+    });
+    session = new SshSession(opened.id, opened.os);
     early.forEach((msg) => session!.handle(msg));
     return session;
   }

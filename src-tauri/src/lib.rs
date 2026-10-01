@@ -1,6 +1,8 @@
 mod conn;
 mod forward;
 mod hostkey;
+mod knownhosts;
+mod localfs;
 mod secrets;
 mod sftp;
 mod ssh;
@@ -121,6 +123,28 @@ async fn host_key_respond(state: State<'_, AppState>, id: String, accept: bool) 
     Ok(())
 }
 
+#[tauri::command]
+fn known_hosts_list(state: State<'_, AppState>) -> CmdResult<Vec<knownhosts::KnownHost>> {
+    knownhosts::list(&state.ctx.known_hosts).map_err(err)
+}
+
+#[tauri::command]
+fn known_hosts_remove(state: State<'_, AppState>, line: usize) -> CmdResult<()> {
+    knownhosts::remove(&state.ctx.known_hosts, line).map_err(err)
+}
+
+// ---- Local files (left pane of SFTP) ----------------------------------------
+
+#[tauri::command]
+fn local_home() -> String {
+    localfs::home()
+}
+
+#[tauri::command]
+fn local_list(path: String) -> CmdResult<Vec<Entry>> {
+    localfs::list(path.as_ref()).map_err(err)
+}
+
 // ---- Terminal -------------------------------------------------------------
 
 #[tauri::command]
@@ -130,7 +154,7 @@ async fn ssh_connect(
     cols: u32,
     rows: u32,
     on_event: Channel<SshEvent>,
-) -> CmdResult<String> {
+) -> CmdResult<ssh::Opened> {
     state
         .sessions
         .open(request, &state.ctx, cols, rows, on_event)
@@ -298,6 +322,10 @@ pub fn run() {
             secret_set,
             secret_delete,
             host_key_respond,
+            known_hosts_list,
+            known_hosts_remove,
+            local_home,
+            local_list,
             ssh_connect,
             ssh_write,
             ssh_resize,

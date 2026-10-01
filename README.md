@@ -5,14 +5,16 @@
 
 ## Imkoniyatlar
 
-- 🖥  **Hostlar** — qo'shish, tahrirlash, guruhlash, qidiruv
+- 🖥  **Hostlar** — guruhlar, qidiruv, `user@host` yozib tez ulanish, o'ng panelda tahrirlash, o'ng tugma menyusi
+- 🐧 **OS aniqlash** — birinchi ulanishda server OS'i aniqlanib, ikonka rangi shunga moslanadi
 - 🔐 **Autentifikatsiya** — parol, private key (passphrase bilan) yoki **SSH agent**
 - 🔑 **Keychain** — parol/passphrase'ni OS keychain'da saqlash (macOS Keychain, Windows Credential Manager, Linux Secret Service). Diskdagi JSON'da sir saqlanmaydi
 - 🧭 **Jump host** (ProxyJump) — boshqa saqlangan host orqali ulanish
 - 🛡  **Host key tekshiruvi** — yangi serverda fingerprint ko'rsatilib tasdiq so'raladi; kalit o'zgarsa ulanish rad etiladi
 - 🗂  **Ko'p tabli terminal** — xterm.js, 256 rang, avtomatik o'lcham
 - ⚡ **Snippets** — saqlangan buyruqlar, terminaldagi ⚡ tugmasidan bir bosishda ishga tushadi
-- 📁 **SFTP** — fayl brauzeri: kirish/chiqish, yuklash va yuklab olish (progress bilan), papka yaratish, nomini o'zgartirish, o'chirish
+- 📁 **SFTP** — ikki panel (Local | Remote): drag & drop bilan fayl ko'chirish (progress bilan), papka yaratish, nomini o'zgartirish, o'chirish
+- 🔏 **Known Hosts** — ishonilgan server kalitlarini ko'rish va o'chirish
 - 🔀 **Port forwarding** — local (`-L`) va dynamic SOCKS5 (`-D`), start/stop bilan
 
 ## Roadmap
@@ -48,17 +50,17 @@ SSH_TEST_ADDR=127.0.0.1:22 SSH_TEST_USER=me SSH_TEST_PASSWORD=... cargo test -- 
 
 ```
 src/                      React UI
+  App.tsx                 oyna: yuqori tablar (Home, SFTP, sessiyalar) + chap menyu
   api.ts                  Tauri buyruqlari + SshSession (stream buferi)
-  components/
-    HostList.tsx          hostlar ro'yxati
-    HostForm.tsx          host qo'shish/tahrirlash
-    ConnectDialog.tsx     parol / passphrase so'rash
-    HostKeyDialog.tsx     yangi host kalitini tasdiqlash
-    TerminalView.tsx      xterm.js terminal + snippet palitrasi
-    SftpView.tsx          SFTP fayl brauzeri
-    SnippetsView.tsx      snippetlar
-    ForwardsView.tsx      port forwarding qoidalari
   useConnector.tsx        keychain → so'rov → qayta urinish oqimi
+  components/
+    HostsPage.tsx         qidiruv / tez ulanish, guruhlar, host kartalari
+    HostDetails.tsx       o'ng panel: hostni tahrirlash va ulanish
+    SftpPage.tsx          ikki panelli SFTP (Local | Remote, drag & drop)
+    TerminalView.tsx      xterm.js terminal + snippetlar paneli
+    ForwardsPage.tsx      port forwarding qoidalari
+    SnippetsPage.tsx      snippetlar
+    KnownHostsPage.tsx    ishonilgan server kalitlari
 src-tauri/src/
   lib.rs                  Tauri buyruqlari
   conn.rs                 ulanish: auth (parol/kalit/agent), jump host, known_hosts
@@ -66,6 +68,8 @@ src-tauri/src/
   ssh.rs                  terminal sessiyalari
   sftp.rs                 SFTP (russh-sftp)
   forward.rs              local va SOCKS5 forwarding
+  knownhosts.rs           known_hosts ro'yxati / o'chirish
+  localfs.rs              lokal fayllar (SFTP chap paneli)
   secrets.rs              OS keychain (keyring)
   store.rs                hosts / snippets / forwards JSON saqlash
 ```

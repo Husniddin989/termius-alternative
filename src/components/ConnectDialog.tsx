@@ -46,18 +46,20 @@ export function ConnectDialog({ host, error, onSubmit, onCancel }: Props) {
               {method === "key" ? "Key passphrase (leave empty if none)" : "Password"}
               <input type="password" autoFocus value={secret} onChange={(e) => setSecret(e.target.value)} />
             </label>
-            <label className="check">
-              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-              Save in system keychain
-            </label>
+            {host.id && (
+              <label className="check">
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                Save in system keychain
+              </label>
+            )}
           </>
         )}
         {error && <p className="error">{error}</p>}
         <div className="actions">
-          <button type="button" className="ghost" onClick={onCancel}>
+          <button type="button" className="secondary" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" autoFocus={method === "agent"}>
+          <button type="submit" className="primary" autoFocus={method === "agent"}>
             {error ? "Retry" : "Connect"}
           </button>
         </div>
