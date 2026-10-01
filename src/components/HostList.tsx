@@ -4,12 +4,13 @@ import type { Host } from "../api";
 interface Props {
   hosts: Host[];
   onConnect: (host: Host) => void;
+  onSftp: (host: Host) => void;
   onEdit: (host: Host) => void;
   onDelete: (host: Host) => void;
   onAdd: () => void;
 }
 
-export function HostList({ hosts, onConnect, onEdit, onDelete, onAdd }: Props) {
+export function HostList({ hosts, onConnect, onSftp, onEdit, onDelete, onAdd }: Props) {
   const [query, setQuery] = useState("");
 
   const groups = useMemo(() => {
@@ -56,9 +57,20 @@ export function HostList({ hosts, onConnect, onEdit, onDelete, onAdd }: Props) {
                   <span className="muted">
                     {h.username}@{h.host}
                     {h.port !== 22 && `:${h.port}`}
+                    {h.jumpHostId && ` · via ${hosts.find((j) => j.id === h.jumpHostId)?.label ?? "?"}`}
                   </span>
                 </div>
                 <div className="host-actions">
+                  <button
+                    className="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSftp(h);
+                    }}
+                    title="Open SFTP"
+                  >
+                    SFTP
+                  </button>
                   <button
                     className="ghost"
                     onClick={(e) => {

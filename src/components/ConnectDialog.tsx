@@ -1,26 +1,34 @@
 import { useState } from "react";
 import type { Auth, Host } from "../api";
 
+export interface Credentials {
+  auth: Auth;
+  /** Secret to store in the keychain once the connection succeeds, if any. */
+  save: string | null;
+}
+
 interface Props {
   host: Host;
   error: string | null;
-  busy: boolean;
-  onConnect: (auth: Auth) => void;
+  onSubmit: (c: Credentials) => void;
   onCancel: () => void;
 }
 
-/** Asks for the secret (password or key passphrase), which is never stored. */
-export function ConnectDialog({ host, error, busy, onConnect, onCancel }: Props) {
+/** Asks for the password or key passphrase of a host. */
+export function ConnectDialog({ host, error, onSubmit, onCancel }: Props) {
   const [secret, setSecret] = useState("");
-  const isKey = host.authMethod === "key";
+  const [remember, setRemember] = useState(false);
+  const method = host.authMethod;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    onConnect(
-      isKey
-        ? { kind: "key", keyPath: host.keyPath ?? "", passphrase: secret || null }
-        : { kind: "password", password: secret },
-    );
+    const auth: Auth =
+      method === "agent"
+        ? { kind: "agent" }
+        : method === "key"
+          ? { kind: "key", keyPath: host.keyPath ?? "", passphrase: secret || null }
+          : { kind: "password", password: secret };
+    onSubmit({ auth, save: remember && method !== "agent" ? secret : null });
   };
 
   return (
@@ -30,17 +38,27 @@ export function ConnectDialog({ host, error, busy, onConnect, onCancel }: Props)
         <p className="muted">
           {host.username}@{host.host}:{host.port}
         </p>
-        <label>
-          {isKey ? "Key passphrase (leave empty if none)" : "Password"}
-          <input type="password" autoFocus value={secret} onChange={(e) => setSecret(e.target.value)} />
-        </label>
+        {method === "agent" ? (
+          <p className="muted">Authenticating with the keys in your SSH agent.</p>
+        ) : (
+          <>
+            <label>
+              {method === "key" ? "Key passphrase (leave empty if none)" : "Password"}
+              <input type="password" autoFocus value={secret} onChange={(e) => setSecret(e.target.value)} />
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+              Save in system keychain
+            </label>
+          </>
+        )}
         {error && <p className="error">{error}</p>}
         <div className="actions">
           <button type="button" className="ghost" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" disabled={busy}>
-            {busy ? "Connecting…" : "Connect"}
+          <button type="submit" autoFocus={method === "agent"}>
+            {error ? "Retry" : "Connect"}
           </button>
         </div>
       </form>

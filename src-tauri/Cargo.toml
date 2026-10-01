@@ -27,6 +27,9 @@ tokio = { version = "1.53.1", features = ["full"] }
 async-trait = "0.1.92"
 anyhow = "1.0.104"
 uuid = { version = "1.26.1", features = ["v4"] }
+tauri-plugin-dialog = "2.8.1"
+russh-sftp = "3.0.1"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
