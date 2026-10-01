@@ -17,7 +17,7 @@ interface Props {
 /** Asks for the password or key passphrase of a host. */
 export function ConnectDialog({ host, error, onSubmit, onCancel }: Props) {
   const [secret, setSecret] = useState("");
-  const [remember, setRemember] = useState(false);
+  const [remember, setRemember] = useState(true);
   const method = host.authMethod;
 
   const submit = (e: React.FormEvent) => {

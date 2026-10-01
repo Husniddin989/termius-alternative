@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { type AuthMethod, type Host, secretsApi } from "../api";
+import { forgetSessionAuth } from "../useConnector";
 import { DetailsPanel, Field, Section } from "./DetailsPanel";
 import { OsIcon } from "./OsIcon";
 import { ChevronDown, EyeIcon, EyeOffIcon, GroupIcon, KeyIcon, LockIcon, UserIcon } from "./icons";
@@ -93,6 +94,7 @@ export function HostDetails({ host: initial, hosts, onSave, onConnect, onDuplica
 
   const forgetSecret = async () => {
     await secretsApi.remove(host.id);
+    forgetSessionAuth(host.id);
     setHasSecret(false);
   };
 

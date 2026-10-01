@@ -17,13 +17,46 @@ interface AuthPrompt {
   resolve: (c: Credentials | null) => void;
 }
 
-async function storedAuth(host: Host): Promise<Auth | null> {
-  if (host.authMethod === "agent") return { kind: "agent" };
-  const secret = await secretsApi.get(host.id).catch(() => null);
-  if (secret === null) return null;
+/** Credentials that worked during this app session, so we don't ask twice. */
+const sessionAuth = new Map<string, Auth>();
+
+/** Drops credentials cached for this session (after editing or forgetting them). */
+export function forgetSessionAuth(hostId: string) {
+  sessionAuth.delete(hostId);
+}
+
+/** Saved credentials for a host, plus why the keychain couldn't be read, if it failed. */
+async function storedAuth(host: Host): Promise<{ auth: Auth | null; error: string | null }> {
+  if (host.authMethod === "agent") return { auth: { kind: "agent" }, error: null };
+  const cached = host.id ? sessionAuth.get(host.id) : undefined;
+  if (cached) return { auth: cached, error: null };
+  if (!host.id) return { auth: null, error: null };
+  let secret: string | null;
+  try {
+    secret = await secretsApi.get(host.id);
+  } catch (e) {
+    return { auth: null, error: `Could not read the saved password from the keychain: ${e}` };
+  }
+  if (secret === null) return { auth: null, error: null };
+  return { auth: authFromSecret(host, secret), error: null };
+}
+
+function authFromSecret(host: Host, secret: string): Auth {
   return host.authMethod === "password"
     ? { kind: "password", password: secret }
     : { kind: "key", keyPath: host.keyPath ?? "", passphrase: secret || null };
+}
+
+async function remember(host: Host, auth: Auth, save: string | null): Promise<string | null> {
+  if (!host.id) return null;
+  sessionAuth.set(host.id, auth);
+  if (save === null) return null;
+  try {
+    await secretsApi.set(host.id, save);
+    return null;
+  } catch (e) {
+    return `Connected, but the password for ${host.label} could not be saved to the keychain: ${e}`;
+  }
 }
 
 const toTarget = (h: Host, auth: Auth) => ({ host: h.host, port: h.port, username: h.username, auth });
@@ -58,11 +91,13 @@ export function useConnector(hosts: Host[]) {
         return null;
       }
 
-      let target = await storedAuth(host);
-      let jump = jumpHost ? await storedAuth(jumpHost) : null;
+      const storedTarget = await storedAuth(host);
+      const storedJump = jumpHost ? await storedAuth(jumpHost) : { auth: null, error: null };
+      let target = storedTarget.auth;
+      let jump = storedJump.auth;
       let saveTarget: string | null = null;
       let saveJump: string | null = null;
-      let error: string | null = null;
+      let error: string | null = storedJump.error ?? storedTarget.error;
 
       for (;;) {
         if (jumpHost && !jump) {
@@ -82,8 +117,11 @@ export function useConnector(hosts: Host[]) {
             target: toTarget(host, target),
             jump: jumpHost && jump ? toTarget(jumpHost, jump) : null,
           });
-          if (host.id && saveTarget !== null) await secretsApi.set(host.id, saveTarget).catch(() => {});
-          if (jumpHost && saveJump !== null) await secretsApi.set(jumpHost.id, saveJump).catch(() => {});
+          const saveErrors = [
+            await remember(host, target, saveTarget),
+            jumpHost && jump ? await remember(jumpHost, jump, saveJump) : null,
+          ].filter(Boolean);
+          if (saveErrors.length) void message(saveErrors.join("\n\n"), { title: "Keychain", kind: "warning" });
           return result;
         } catch (e) {
           error = String(e);
@@ -91,8 +129,13 @@ export function useConnector(hosts: Host[]) {
             await message(error, { title: "Connection refused", kind: "error" });
             return null;
           }
-          if (error.startsWith("jump host")) jump = null;
-          else target = null;
+          if (error.startsWith("jump host")) {
+            jump = null;
+            if (jumpHost) sessionAuth.delete(jumpHost.id);
+          } else {
+            target = null;
+            sessionAuth.delete(host.id);
+          }
         } finally {
           setStatus(null);
         }

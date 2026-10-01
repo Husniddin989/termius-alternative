@@ -29,7 +29,7 @@ import {
   SnippetIcon,
   VaultIcon,
 } from "./components/icons";
-import { useConnector } from "./useConnector";
+import { forgetSessionAuth, useConnector } from "./useConnector";
 import "./App.css";
 
 interface TerminalTab {
@@ -81,6 +81,8 @@ export default function App() {
 
   const saveHost = async (host: Host, secret: string | null) => {
     const saved = await hostsApi.save(host);
+    // Any change to how we log in invalidates what this session remembered.
+    forgetSessionAuth(saved.id);
     if (secret !== null) await secretsApi.set(saved.id, secret);
     await reloadHosts();
     setDetails(saved);
