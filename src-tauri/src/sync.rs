@@ -17,8 +17,9 @@ use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use crate::keyfiles;
 use crate::secrets;
-use crate::store::{now_ms, ForwardRule, Host, JsonStore, Record, Snippet};
+use crate::store::{now_ms, AuthMethod, ForwardRule, Host, JsonStore, Record, Snippet};
 
 /// Keychain accounts for the sync credentials.
 pub const TOKEN_ACCOUNT: &str = "sync-github-token";
@@ -44,6 +45,13 @@ pub struct SyncMeta {
     pub tombstones: BTreeMap<String, i64>,
     /// Host id → when its saved password last changed on this device.
     pub secret_times: BTreeMap<String, i64>,
+    /// Key path → version of the synced copy stored on this device.
+    pub key_times: BTreeMap<String, i64>,
+}
+
+/// Private keys received from other devices.
+pub fn synced_keys_dir(dir: &Path) -> PathBuf {
+    dir.join("keys")
 }
 
 fn meta_path(dir: &Path) -> PathBuf {
@@ -113,6 +121,8 @@ pub struct Vault {
     pub forwards: Vec<ForwardRule>,
     /// Host id → saved password or key passphrase.
     pub secrets: BTreeMap<String, SecretEntry>,
+    /// Key path as written in hosts (e.g. "~/.ssh/id_ed25519") → private key file.
+    pub keys: BTreeMap<String, SecretEntry>,
     pub tombstones: BTreeMap<String, i64>,
 }
 
@@ -242,6 +252,32 @@ fn dedupe_snippets(snippets: Vec<Snippet>) -> Vec<Snippet> {
         .collect()
 }
 
+/// Per key, the newer entry wins (ties broken by value, so every device agrees).
+fn merge_entries(
+    a: BTreeMap<String, SecretEntry>,
+    b: BTreeMap<String, SecretEntry>,
+) -> BTreeMap<String, SecretEntry> {
+    let mut out = a;
+    for (k, entry) in b {
+        match out.get(&k) {
+            Some(mine) if (mine.updated_at, &mine.value) >= (entry.updated_at, &entry.value) => {}
+            _ => {
+                out.insert(k, entry);
+            }
+        }
+    }
+    out
+}
+
+fn key_paths(hosts: &[Host]) -> BTreeSet<String> {
+    hosts
+        .iter()
+        .filter(|h| h.auth_method == AuthMethod::Key)
+        .filter_map(|h| h.key_path.clone())
+        .filter(|p| !p.trim().is_empty())
+        .collect()
+}
+
 pub fn merge(local: Vault, remote: Vault) -> Vault {
     let mut tombstones = local.tombstones;
     for (id, at) in remote.tombstones {
@@ -253,25 +289,23 @@ pub fn merge(local: Vault, remote: Vault) -> Vault {
     let forwards = merge_records(local.forwards, remote.forwards, &tombstones);
 
     let host_ids: BTreeSet<&str> = hosts.iter().map(|h| h.id.as_str()).collect();
-    let mut secrets = local.secrets;
-    for (id, entry) in remote.secrets {
-        match secrets.get(&id) {
-            Some(mine) if mine.updated_at >= entry.updated_at => {}
-            _ => {
-                secrets.insert(id, entry);
-            }
-        }
-    }
+    let mut secrets = merge_entries(local.secrets, remote.secrets);
     secrets.retain(|id, entry| {
         host_ids.contains(id.as_str())
             && tombstones.get(&secret_key(id)).is_none_or(|&deleted| deleted < entry.updated_at)
     });
+
+    // Keys travel while some host still uses them.
+    let used = key_paths(&hosts);
+    let mut keys = merge_entries(local.keys, remote.keys);
+    keys.retain(|path, _| used.contains(path));
 
     Vault {
         hosts,
         snippets,
         forwards,
         secrets,
+        keys,
         tombstones,
     }
 }
@@ -310,8 +344,24 @@ pub fn local_vault(dir: &Path, store: &dyn SecretStore) -> anyhow::Result<Vault>
             secrets.insert(host.id.clone(), SecretEntry { value, updated_at });
         }
     }
+    // The real key file if this device has one, else the copy synced earlier.
+    let synced = synced_keys_dir(dir);
+    let mut keys = BTreeMap::new();
+    for path in key_paths(&hosts) {
+        let entry = match keyfiles::read(&keyfiles::expand_home(&path)) {
+            Some((value, modified)) => Some(SecretEntry { value, updated_at: modified }),
+            None => keyfiles::read(&keyfiles::synced_copy(&synced, &path)).map(|(value, _)| SecretEntry {
+                value,
+                updated_at: meta.key_times.get(&path).copied().unwrap_or(0),
+            }),
+        };
+        if let Some(entry) = entry {
+            keys.insert(path, entry);
+        }
+    }
     Ok(Vault {
         hosts,
+        keys,
         snippets: JsonStore::<Snippet>::new(dir, "snippets.json").list()?,
         forwards: JsonStore::<ForwardRule>::new(dir, "forwards.json").list()?,
         secrets,
@@ -347,6 +397,22 @@ fn apply(dir: &Path, store: &dyn SecretStore, merged: &Vault, local: &Vault) -> 
             store.delete(id)?;
             meta.secret_times.remove(id);
             changed = true;
+        }
+    }
+    // Never touch a real key file; only the app's own synced copies.
+    let synced = synced_keys_dir(dir);
+    for (path, entry) in &merged.keys {
+        if keyfiles::expand_home(path).exists() || local.keys.get(path) == Some(entry) {
+            continue;
+        }
+        keyfiles::write_private(&keyfiles::synced_copy(&synced, path), &entry.value)?;
+        meta.key_times.insert(path.clone(), entry.updated_at);
+        changed = true;
+    }
+    for path in meta.key_times.keys().cloned().collect::<Vec<_>>() {
+        if !merged.keys.contains_key(&path) {
+            let _ = std::fs::remove_file(keyfiles::synced_copy(&synced, &path));
+            meta.key_times.remove(&path);
         }
     }
     meta.tombstones = merged.tombstones.clone();
@@ -852,6 +918,58 @@ mod tests {
         assert!(e.contains("does not open it"), "{e}");
         let bad = GitHub { http: &http, api: &api, token: "bad" };
         assert!(bad.login().await.unwrap_err().to_string().contains("invalid or expired"));
+
+        for d in [laptop, phone] {
+            std::fs::remove_dir_all(d).unwrap();
+        }
+    }
+    #[tokio::test]
+    async fn private_keys_reach_devices_without_them() {
+        let (api, gists) = fake_github("tok").await;
+        let http = reqwest::Client::new();
+        let gh = GitHub { http: &http, api: &api, token: "tok" };
+        let (laptop, phone) = (temp_dir(), temp_dir());
+        let keys = MemSecrets::default();
+
+        // The laptop has a real key file at the host's key path.
+        let real_key = laptop.join("id_ed25519");
+        let key_path = real_key.to_str().unwrap().to_string();
+        std::fs::create_dir_all(&laptop).unwrap();
+        std::fs::write(&real_key, "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n").unwrap();
+        let mut server = host("h1", "web", 0);
+        server.auth_method = AuthMethod::Key;
+        server.key_path = Some(key_path.clone());
+        JsonStore::<Host>::new(&laptop, "hosts.json").write(&[server]).unwrap();
+        sync(&laptop, &keys, &gh, "pw").await.unwrap();
+        let stored = gists.lock().unwrap().values().next().unwrap().clone();
+        assert!(!stored.contains("OPENSSH"));
+
+        // The phone has no file at that path: it gets a private synced copy,
+        // and connecting resolves the key path to it.
+        std::fs::rename(&real_key, laptop.join("moved")).unwrap();
+        let r = sync(&phone, &keys, &gh, "pw").await.unwrap();
+        assert!(r.changed);
+        let synced = synced_keys_dir(&phone);
+        let resolved = keyfiles::resolve(&synced, &key_path);
+        assert!(resolved.starts_with(&synced));
+        assert!(std::fs::read_to_string(&resolved).unwrap().contains("abc"));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&resolved).unwrap().permissions().mode() & 0o777, 0o600);
+        }
+
+        // Steady state: nothing to change or push.
+        let r = sync(&phone, &keys, &gh, "pw").await.unwrap();
+        assert!(!r.changed && !r.pushed);
+
+        // Switching the host to password login drops the key everywhere.
+        let phone_hosts = JsonStore::<Host>::new(&phone, "hosts.json");
+        let mut h = phone_hosts.list().unwrap().remove(0);
+        h.auth_method = AuthMethod::Password;
+        phone_hosts.save(h).unwrap();
+        sync(&phone, &keys, &gh, "pw").await.unwrap();
+        assert!(!resolved.exists());
 
         for d in [laptop, phone] {
             std::fs::remove_dir_all(d).unwrap();

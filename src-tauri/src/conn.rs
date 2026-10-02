@@ -11,6 +11,8 @@ use russh::keys::{self, HashAlg, PrivateKeyWithHashAlg, PublicKey, PublicKeyOrCe
 use russh::{client, Disconnect};
 use serde::{Deserialize, Serialize};
 
+use crate::keyfiles;
+
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Debug, Clone, Deserialize)]
@@ -65,6 +67,8 @@ pub trait HostKeyVerifier: Send + Sync {
 #[derive(Clone)]
 pub struct ConnectContext {
     pub known_hosts: PathBuf,
+    /// Key files received through sync (see keyfiles.rs).
+    pub synced_keys: PathBuf,
     pub verifier: Arc<dyn HostKeyVerifier>,
 }
 
@@ -205,7 +209,7 @@ pub async fn establish(req: ConnectRequest, ctx: &ConnectContext) -> anyhow::Res
             ))
             .await
             .map_err(|e| e.context("jump host"))?;
-            authenticate(&mut jump, j)
+            authenticate(&mut jump, j, ctx)
                 .await
                 .map_err(|e| e.context("jump host"))?;
             let tunnel = jump
@@ -219,7 +223,7 @@ pub async fn establish(req: ConnectRequest, ctx: &ConnectContext) -> anyhow::Res
         }
     };
 
-    authenticate(&mut handle, t).await?;
+    authenticate(&mut handle, t, ctx).await?;
     Ok(Connection { handle, jump })
 }
 
@@ -231,7 +235,7 @@ async fn with_timeout<T>(
         .map_err(|_| anyhow::anyhow!("connection timed out"))?
 }
 
-async fn authenticate(handle: &mut Handle, t: &Target) -> anyhow::Result<()> {
+async fn authenticate(handle: &mut Handle, t: &Target, ctx: &ConnectContext) -> anyhow::Result<()> {
     let ok = match &t.auth {
         Auth::Password { password } => handle
             .authenticate_password(&t.username, password)
@@ -241,7 +245,7 @@ async fn authenticate(handle: &mut Handle, t: &Target) -> anyhow::Result<()> {
             key_path,
             passphrase,
         } => {
-            let key = keys::load_secret_key(expand_home(key_path), passphrase.as_deref())
+            let key = keys::load_secret_key(keyfiles::resolve(&ctx.synced_keys, key_path), passphrase.as_deref())
                 .map_err(|e| anyhow::anyhow!("could not load key {key_path}: {e}"))?;
             let hash = handle.best_supported_rsa_hash().await?.flatten();
             handle
@@ -299,15 +303,6 @@ where
     Ok(false)
 }
 
-fn expand_home(path: &str) -> PathBuf {
-    match path.strip_prefix("~/") {
-        Some(rest) => std::env::home_dir()
-            .map(|home| home.join(rest))
-            .unwrap_or_else(|| PathBuf::from(path)),
-        None => PathBuf::from(path),
-    }
-}
-
 #[cfg(test)]
 pub mod testing {
     use super::*;
@@ -324,6 +319,7 @@ pub mod testing {
     pub fn context() -> ConnectContext {
         ConnectContext {
             known_hosts: std::env::temp_dir().join(format!("kh-{}", uuid::Uuid::new_v4())),
+            synced_keys: std::env::temp_dir().join(format!("keys-{}", uuid::Uuid::new_v4())),
             verifier: Arc::new(AcceptAll),
         }
     }

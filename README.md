@@ -22,7 +22,7 @@
 - 📁 **SFTP** — ikki panel (Local | Remote): drag & drop bilan fayl ko'chirish (progress bilan), papka yaratish, nomini o'zgartirish, o'chirish
 - 🔏 **Known Hosts** — ishonilgan server kalitlarini ko'rish va o'chirish
 - 🔀 **Port forwarding** — local (`-L`) va dynamic SOCKS5 (`-D`), start/stop bilan
-- 🔄 **Sinxronizatsiya** — hostlar, saqlangan parollar, snippetlar va forwarding qoidalari kompyuter ↔ telefon o'rtasida
+- 🔄 **Sinxronizatsiya** — hostlar, saqlangan parollar, private key'lar, snippetlar va forwarding qoidalari kompyuter ↔ telefon o'rtasida
   GitHub'dagi **secret Gist** orqali sinxronlanadi. Hammasi qurilmaning o'zida sync parol bilan shifrlanadi
   (Argon2id → XChaCha20-Poly1305) — GitHub faqat shifrlangan matnni ko'radi. Har bir yozuv bo'yicha birlashtiriladi:
   yangiroq tahrir yutadi, o'chirishlar ham boshqa qurilmaga o'tadi
@@ -34,7 +34,8 @@
 3. Telefonda: xuddi shu token (yoki shu akkauntdagi boshqa token) va **xuddi shu sync parol** bilan yoqing.
 
 Ilova ochilganda, har 3 daqiqada, oynaga qaytganda va har o'zgarishdan keyin avtomatik sinxronlanadi.
-Key fayllar sinxronlanmaydi — key bilan kiriladigan hostlar uchun kalitni har qurilmaga alohida qo'ying.
+Key bilan kiriladigan hostlarning private key fayllari ham (shifrlangan holda) o'tadi: faylni o'zida yo'q qurilmada
+(masalan telefonda) ilova uni o'zining yopiq papkasida saqlaydi; `~/.ssh` dagi fayllar hech qachon ustidan yozilmaydi.
 Sync parolni unutsangiz uni tiklab bo'lmaydi: GitHub'dagi gist'ni o'chirib, sync'ni qaytadan yoqing.
 
 ## Roadmap

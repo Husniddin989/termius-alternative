@@ -2,6 +2,7 @@ mod ai;
 mod conn;
 mod forward;
 mod hostkey;
+mod keyfiles;
 mod knownhosts;
 mod localfs;
 mod ollama;
@@ -533,6 +534,7 @@ pub fn run() {
             app.manage(AppState {
                 ctx: ConnectContext {
                     known_hosts: data_dir.join("known_hosts"),
+                    synced_keys: sync::synced_keys_dir(&data_dir),
                     verifier: verifier.clone(),
                 },
                 data_dir,

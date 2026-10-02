@@ -59,8 +59,8 @@ export function SyncSettings({ sync, onNote }: { sync: SyncControl; onNote: (tex
       <section className="settings-card">
         <h2>Sync</h2>
         <p className="muted">
-          Hosts, saved passwords, snippets and port forwarding rules are synced end-to-end encrypted through a secret
-          gist in <b>@{status.login}</b>. Only devices with your sync password can read them.
+          Hosts, saved passwords, private keys, snippets and port forwarding rules are synced end-to-end encrypted
+          through a secret gist in <b>@{status.login}</b>. Only devices with your sync password can read them.
         </p>
         <div className="sync-state">
           <span className={`dot ${status.lastError ? "bad" : syncing ? "busy" : "ok"}`} />
@@ -81,8 +81,8 @@ export function SyncSettings({ sync, onNote }: { sync: SyncControl; onNote: (tex
           </button>
         </div>
         <p className="muted small">
-          Key files are not synced: for key-based hosts, put the key on each device at the same path (or switch the
-          host to password login).
+          Private keys used by your hosts travel too. On devices that don't have the file, the app keeps its own copy
+          in private storage — files in ~/.ssh are never overwritten.
         </p>
       </section>
     );
@@ -92,7 +92,7 @@ export function SyncSettings({ sync, onNote }: { sync: SyncControl; onNote: (tex
     <section className="settings-card">
       <h2>Sync</h2>
       <p className="muted">
-        Have the same hosts and passwords on your computer and phone. Everything is encrypted on the device with your
+        Have the same hosts, passwords and keys on your computer and phone. Everything is encrypted on the device with your
         sync password and stored in a secret gist in your GitHub account — GitHub never sees the contents.
       </p>
       <ol className="steps muted small">
