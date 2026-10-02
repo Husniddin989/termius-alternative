@@ -136,33 +136,44 @@ impl Connection {
     /// Best-effort guess of the remote OS: the `ID` from /etc/os-release
     /// (lowercased), or the kernel name from `uname` on systems without it.
     pub async fn detect_os(&self) -> Option<String> {
-        let probe = async {
+        let out = self
+            .exec(
+                "sh -c '. /etc/os-release 2>/dev/null && echo \"$ID\" || uname -s'",
+                Duration::from_secs(4),
+                64,
+            )
+            .await?;
+        let id = out.trim().to_lowercase();
+        let valid = !id.is_empty()
+            && id.len() <= 32
+            && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+        valid.then_some(id)
+    }
+
+    /// Runs a command on a separate channel of this connection and returns
+    /// its stdout (at most `max_bytes`), or None on error or timeout.
+    pub async fn exec(&self, command: &str, timeout: Duration, max_bytes: usize) -> Option<String> {
+        let run = async {
             let mut channel = self.handle.channel_open_session().await.ok()?;
-            channel
-                .exec(
-                    true,
-                    "sh -c '. /etc/os-release 2>/dev/null && echo \"$ID\" || uname -s'",
-                )
-                .await
-                .ok()?;
+            channel.exec(true, command).await.ok()?;
             let mut out = Vec::new();
             while let Some(msg) = channel.wait().await {
                 match msg {
-                    russh::ChannelMsg::Data { data } => out.extend_from_slice(&data),
+                    russh::ChannelMsg::Data { data } => {
+                        out.extend_from_slice(&data);
+                        if out.len() >= max_bytes {
+                            out.truncate(max_bytes);
+                            break;
+                        }
+                    }
                     russh::ChannelMsg::Eof | russh::ChannelMsg::Close => break,
                     _ => {}
                 }
             }
-            let id = String::from_utf8_lossy(&out).trim().to_lowercase();
-            let valid = !id.is_empty()
-                && id.len() <= 32
-                && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
-            valid.then_some(id)
+            let _ = channel.close().await;
+            Some(String::from_utf8_lossy(&out).into_owned())
         };
-        tokio::time::timeout(Duration::from_secs(4), probe)
-            .await
-            .ok()
-            .flatten()
+        tokio::time::timeout(timeout, run).await.ok().flatten()
     }
 
     pub async fn disconnect(&self) {
@@ -178,7 +189,9 @@ impl Connection {
 
 fn config() -> Arc<client::Config> {
     Arc::new(client::Config {
-        keepalive_interval: Some(Duration::from_secs(30)),
+        // Short enough to keep mobile-carrier NAT mappings open, and to notice
+        // a dead connection within a minute.
+        keepalive_interval: Some(Duration::from_secs(20)),
         ..Default::default()
     })
 }

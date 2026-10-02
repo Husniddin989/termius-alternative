@@ -326,4 +326,18 @@ export class SshSession {
   close() {
     return invoke(`${this.backend}_close`, { id: this.id });
   }
+
+  /** Entries of a directory on the session's machine ("~" allowed); dirs end with "/". */
+  async listDir(dir: string): Promise<string[]> {
+    if (this.backend === "ssh") return invoke<string[]>("ssh_list_dir", { id: this.id, dir });
+    const home = await localApi.home();
+    const path = dir === "~" ? home : dir.startsWith("~/") ? `${home}/${dir.slice(2)}` : dir;
+    const entries = await localApi.list(path);
+    return entries.map((e) => (e.isDir ? `${e.name}/` : e.name));
+  }
+
+  /** The user's shell history on that machine, oldest first. */
+  history(): Promise<string[]> {
+    return this.backend === "ssh" ? invoke<string[]>("ssh_history", { id: this.id }) : invoke<string[]>("local_history");
+  }
 }

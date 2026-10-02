@@ -19,3 +19,7 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+# Called from the web UI (window.AndroidSessions); keep it whatever R8 thinks.
+-keepclassmembers class com.termiusalt.app.MainActivity$Bridge {
+  @android.webkit.JavascriptInterface public <methods>;
+}

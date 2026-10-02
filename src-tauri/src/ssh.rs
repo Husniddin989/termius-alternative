@@ -12,7 +12,8 @@ use serde::Serialize;
 use tauri::ipc::Channel;
 use tokio::sync::{mpsc, Mutex};
 
-use crate::conn::{establish, ConnectContext, ConnectRequest};
+use crate::complete;
+use crate::conn::{establish, ConnectContext, ConnectRequest, Connection};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "event", content = "data", rename_all = "camelCase")]
@@ -28,6 +29,7 @@ enum Command {
 }
 
 type Sessions = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Command>>>>;
+type Connections = Arc<Mutex<HashMap<String, Arc<Connection>>>>;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,6 +41,8 @@ pub struct Opened {
 #[derive(Default)]
 pub struct SessionManager {
     sessions: Sessions,
+    /// The connection behind each session, for side requests (completions).
+    connections: Connections,
 }
 
 impl SessionManager {
@@ -50,7 +54,7 @@ impl SessionManager {
         rows: u32,
         on_event: Channel<SshEvent>,
     ) -> anyhow::Result<Opened> {
-        let conn = establish(req, ctx).await?;
+        let conn = Arc::new(establish(req, ctx).await?);
         let os = conn.detect_os().await;
         let mut channel = conn.handle.channel_open_session().await?;
         channel
@@ -61,8 +65,10 @@ impl SessionManager {
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, mut rx) = mpsc::unbounded_channel::<Command>();
         self.sessions.lock().await.insert(id.clone(), tx);
+        self.connections.lock().await.insert(id.clone(), conn.clone());
 
         let sessions = self.sessions.clone();
+        let connections = self.connections.clone();
         let session_id = id.clone();
         tokio::spawn(async move {
             let reason = loop {
@@ -88,12 +94,15 @@ impl SessionManager {
                         Some(ChannelMsg::ExitStatus { exit_status }) => {
                             break Some(format!("exit status {exit_status}"));
                         }
-                        Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None => break None,
+                        Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) => break None,
+                        // The connection itself went away (network change, keep-alive timeout…).
+                        None => break Some("connection lost".to_string()),
                         Some(_) => {}
                     },
                 }
             };
             sessions.lock().await.remove(&session_id);
+            connections.lock().await.remove(&session_id);
             let _ = channel.close().await;
             conn.disconnect().await;
             let _ = on_event.send(SshEvent::Closed { reason });
@@ -117,6 +126,35 @@ impl SessionManager {
 
     pub async fn resize(&self, id: &str, cols: u32, rows: u32) -> anyhow::Result<()> {
         self.send(id, Command::Resize { cols, rows }).await
+    }
+
+    async fn connection(&self, id: &str) -> anyhow::Result<Arc<Connection>> {
+        self.connections
+            .lock()
+            .await
+            .get(id)
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("session {id} is closed"))
+    }
+
+    /// Entries of a remote directory, directories with a trailing "/".
+    pub async fn list_dir(&self, id: &str, dir: &str) -> anyhow::Result<Vec<String>> {
+        let conn = self.connection(id).await?;
+        let out = conn
+            .exec(&complete::list_command(dir), std::time::Duration::from_secs(5), 256 * 1024)
+            .await
+            .unwrap_or_default();
+        Ok(complete::parse_listing(&out))
+    }
+
+    /// The user's shell history on the server, oldest first.
+    pub async fn history(&self, id: &str) -> anyhow::Result<Vec<String>> {
+        let conn = self.connection(id).await?;
+        let out = conn
+            .exec(complete::HISTORY_COMMAND, std::time::Duration::from_secs(5), 1024 * 1024)
+            .await
+            .unwrap_or_default();
+        Ok(complete::parse_history(&out))
     }
 
     pub async fn close(&self, id: &str) {
@@ -156,6 +194,30 @@ mod tests {
     }
 
     /// Runs against a real sshd, see `conn::testing::target_from_env`.
+    /// Needs a home directory with `app/`, `My Files/` and some shell history.
+    #[tokio::test]
+    #[ignore]
+    async fn completion_side_requests() {
+        let ctx = testing::context();
+        let manager = SessionManager::default();
+        let Opened { id, .. } = manager
+            .open(testing::request(), &ctx, 80, 24, Channel::new(|_| Ok(())))
+            .await
+            .unwrap();
+        let home = manager.list_dir(&id, "~").await.unwrap();
+        assert!(home.contains(&"app/".to_string()) && home.contains(&"My Files/".to_string()), "{home:?}");
+        let sub = manager.list_dir(&id, "~/My Files").await.unwrap();
+        assert!(sub.is_empty(), "{sub:?}");
+        let root = manager.list_dir(&id, "/").await.unwrap();
+        assert!(root.contains(&"etc/".to_string()), "{root:?}");
+        // A hostile name is just a directory that doesn't exist.
+        assert!(manager.list_dir(&id, "/tmp'; touch /tmp/pwned; '").await.unwrap().is_empty());
+        assert!(!std::path::Path::new("/tmp/pwned").exists());
+        let history = manager.history(&id).await.unwrap();
+        assert!(history.contains(&"cd /var/log".to_string()) && history.contains(&"git status".to_string()), "{history:?}");
+        manager.close(&id).await;
+    }
+
     #[tokio::test]
     #[ignore]
     async fn password_shell_roundtrip() {

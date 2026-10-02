@@ -5,10 +5,21 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { aiApi, type AiSuggestion, type Snippet, snippetsApi, type SshSession } from "../api";
-import { applyInput, completions, emptyLine, type LineState, loadHistory, rememberCommand } from "../completion";
+import {
+  applyInput,
+  cwdAfter,
+  cwdFromPrompt,
+  emptyLine,
+  type LineState,
+  loadHistory,
+  rememberCommand,
+  suggest,
+  type Suggestion,
+} from "../completion";
 import { hasPlaceholder } from "../snippetLibrary";
 import { BoltIcon, CloseIcon, SearchIcon, SparkleIcon } from "./icons";
 import { IS_MOBILE } from "../platform";
+import { attachTouchScroll } from "../touchScroll";
 
 /** Ctrl+key for a single typed character, e.g. "c" → ETX (Ctrl+C). */
 function withCtrl(ch: string): string {
@@ -28,10 +39,21 @@ interface Props {
   /** Which model answers, shown in the AI bar. */
   aiLabel: string;
   onClosed: (reason: string | null) => void;
+  /** Opens a new connection for this tab; the terminal and its scrollback stay. */
+  onReconnect?: () => void;
   onSnippetSaved: () => void;
 }
 
 const IS_MAC = navigator.platform.toUpperCase().includes("MAC");
+
+const KIND_MARK: Record<Suggestion["kind"], string> = {
+  history: "↺",
+  command: "$",
+  subcommand: "›",
+  option: "-",
+  dir: "▸",
+  file: "·",
+};
 const AI_SHORTCUT = IS_MAC ? "⌘K" : "Ctrl+Shift+K";
 
 export function TerminalView({
@@ -42,6 +64,7 @@ export function TerminalView({
   termTheme,
   aiLabel,
   onClosed,
+  onReconnect,
   onSnippetSaved,
 }: Props) {
   const initialTheme = useRef(termTheme);
@@ -51,17 +74,33 @@ export function TerminalView({
   const termRef = useRef<Terminal | null>(null);
   const onClosedRef = useRef(onClosed);
   onClosedRef.current = onClosed;
+  const onReconnectRef = useRef(onReconnect);
+  onReconnectRef.current = onReconnect;
+  // The session can be replaced (reconnect) while the terminal lives on.
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  /** undefined while connected; the close reason (or null) after. */
+  const [closed, setClosed] = useState<string | null | undefined>(undefined);
+  const closedRef = useRef(closed);
+  closedRef.current = closed;
 
   const [panelOpen, setPanelOpen] = useState(false);
   const [query, setQuery] = useState("");
 
   // ---- Inline completion state -------------------------------------------
   const lineRef = useRef<LineState>(emptyLine);
-  const snippetsRef = useRef(snippets);
-  snippetsRef.current = snippets;
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const suggestionsRef = useRef<string[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const suggestionsRef = useRef<Suggestion[]>([]);
   suggestionsRef.current = suggestions;
+  const [selected, setSelected] = useState(0);
+  const selectedRef = useRef(0);
+  selectedRef.current = selected;
+  /** Shell history from the server, oldest first. */
+  const remoteHistoryRef = useRef<string[]>([]);
+  /** The shell's working directory as far as we can tell (prompt, or `cd`s typed). */
+  const cwdRef = useRef<string | null>("~");
+  const listingsRef = useRef(new Map<string, { entries: string[]; at: number }>());
+  const loadingRef = useRef(new Set<string>());
   const [popupPos, setPopupPos] = useState<{ left: number; top: number; above: boolean } | null>(null);
 
   // ---- AI bar state -------------------------------------------------------
@@ -83,7 +122,35 @@ export function TerminalView({
 
   const refreshSuggestions = useCallback(() => {
     const line = lineRef.current;
-    setSuggestions(line.known ? completions(line.text, loadHistory(), snippetsRef.current) : []);
+    if (!line.known) {
+      setSuggestions([]);
+      return;
+    }
+    const listings = listingsRef.current;
+    const result = suggest(line.text, {
+      history: [...remoteHistoryRef.current, ...loadHistory()],
+      cwd: cwdRef.current,
+      listing: (dir) => {
+        const hit = listings.get(dir);
+        return hit && Date.now() - hit.at < 15_000 ? hit.entries : undefined;
+      },
+    });
+    setSuggestions(result.items);
+    setSelected(0);
+    // Fetch the directory in the background; suggestions update when it arrives.
+    const dir = result.need;
+    if (dir && !loadingRef.current.has(dir)) {
+      loadingRef.current.add(dir);
+      sessionRef.current
+        .listDir(dir)
+        .catch(() => [] as string[])
+        .then((entries) => {
+          listings.set(dir, { entries, at: Date.now() });
+          loadingRef.current.delete(dir);
+          // The user may have typed on meanwhile; recompute for the current line.
+          if (lineRef.current.known && lineRef.current.text) refreshSuggestions();
+        });
+    }
   }, []);
 
   const placePopup = useCallback(() => {
@@ -102,22 +169,26 @@ export function TerminalView({
     setPopupPos({ left: Math.max(8, left), top: above ? cursorTop : cursorTop + cellH + 2, above });
   }, []);
 
+  const onExecuted = (command: string) => {
+    rememberCommand(command);
+    cwdRef.current = cwdAfter(cwdRef.current, command);
+  };
+
   /** Types text into the shell and keeps our copy of the line in sync. */
   const typeText = useCallback(
     (text: string) => {
       const result = applyInput(lineRef.current, text);
       lineRef.current = result.line;
-      if (result.executed) rememberCommand(result.executed);
-      session.write(text);
+      if (result.executed) onExecuted(result.executed);
+      sessionRef.current.write(text);
       refreshSuggestions();
     },
-    [session, refreshSuggestions],
+    [refreshSuggestions],
   );
 
   const accept = useCallback(
-    (cmd: string) => {
-      const typed = lineRef.current.text;
-      if (cmd.startsWith(typed)) typeText(cmd.slice(typed.length));
+    (item: Suggestion) => {
+      typeText(item.insert);
       termRef.current?.focus();
     },
     [typeText],
@@ -148,18 +219,32 @@ export function TerminalView({
         return false;
       }
       const noMods = !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
-      if (e.key === "ArrowRight" && noMods && suggestionsRef.current.length > 0) {
-        accept(suggestionsRef.current[0]);
-        return false;
-      }
-      if (e.key === "Escape" && suggestionsRef.current.length > 0) {
-        lineRef.current = { ...lineRef.current, known: false };
-        setSuggestions([]);
+      const items = suggestionsRef.current;
+      if (items.length > 0 && noMods) {
+        if (e.key === "ArrowRight" || e.key === "Tab") {
+          e.preventDefault();
+          accept(items[Math.min(selectedRef.current, items.length - 1)]);
+          return false;
+        }
+        if ((e.key === "ArrowDown" || e.key === "ArrowUp") && items.length > 1) {
+          e.preventDefault();
+          const step = e.key === "ArrowDown" ? 1 : -1;
+          setSelected((i) => (i + step + items.length) % items.length);
+          return false;
+        }
+        if (e.key === "Escape") {
+          lineRef.current = { ...lineRef.current, known: false };
+          setSuggestions([]);
+        }
       }
       return true;
     });
 
     const input = term.onData((typed) => {
+      if (closedRef.current !== undefined) {
+        if (typed === "\r") onReconnectRef.current?.();
+        return;
+      }
       let data = typed;
       if (ctrlRef.current && typed.length === 1) {
         data = withCtrl(typed);
@@ -168,35 +253,68 @@ export function TerminalView({
       }
       const result = applyInput(lineRef.current, data);
       lineRef.current = result.line;
-      if (result.executed) rememberCommand(result.executed);
-      session.write(data);
+      if (result.executed) onExecuted(result.executed);
+      sessionRef.current.write(data);
       refreshSuggestions();
     });
     const cursor = term.onCursorMove(() => {
       if (suggestionsRef.current.length > 0) placePopup();
+      // At an empty prompt, read the working directory from it (user@host:~/dir$).
+      const line = lineRef.current;
+      if (line.known && line.text === "") {
+        const buf = term.buffer.active;
+        const text = buf.getLine(buf.baseY + buf.cursorY)?.translateToString(true) ?? "";
+        const cwd = cwdFromPrompt(text.slice(0, buf.cursorX));
+        if (cwd) cwdRef.current = cwd;
+      }
     });
-    const resize = term.onResize(({ cols, rows }) => void session.resize(cols, rows));
-    session.resize(term.cols, term.rows);
-    session.attach({
-      onData: (bytes) => term.write(bytes),
-      onClosed: (reason) => {
-        term.write(`\r\n\x1b[33m[connection closed${reason ? `: ${reason}` : ""}]\x1b[0m\r\n`);
-        onClosedRef.current(reason);
-      },
+    const resize = term.onResize(({ cols, rows }) => {
+      if (closedRef.current === undefined) void sessionRef.current.resize(cols, rows);
     });
 
     const observer = new ResizeObserver(() => fit.fit());
     observer.observe(containerRef.current!);
+    const detachTouch = IS_MOBILE
+      ? attachTouchScroll(containerRef.current!, term, (d) => void sessionRef.current.write(d))
+      : null;
 
     return () => {
+      detachTouch?.();
       observer.disconnect();
       input.dispose();
       cursor.dispose();
       resize.dispose();
-      session.detach();
       term.dispose();
     };
-  }, [session, accept, placePopup, refreshSuggestions]);
+  }, [accept, placePopup, refreshSuggestions]);
+
+  // Connect the terminal to the current session (again after a reconnect).
+  useEffect(() => {
+    const term = termRef.current!;
+    setClosed(undefined);
+    closedRef.current = undefined;
+    lineRef.current = emptyLine;
+    cwdRef.current = "~";
+    listingsRef.current.clear();
+    remoteHistoryRef.current = [];
+    void session.history().then(
+      (h) => (remoteHistoryRef.current = h),
+      () => {},
+    );
+    fitRef.current?.fit();
+    void session.resize(term.cols, term.rows);
+    session.attach({
+      onData: (bytes) => term.write(bytes),
+      onClosed: (reason) => {
+        term.write(`\r\n\x1b[33m[connection closed${reason ? `: ${reason}` : ""}]\x1b[0m\r\n`);
+        closedRef.current = reason;
+        setClosed(reason);
+        setSuggestions([]);
+        onClosedRef.current(reason);
+      },
+    });
+    return () => session.detach();
+  }, [session]);
 
   useEffect(() => {
     if (suggestions.length > 0) placePopup();
@@ -304,6 +422,16 @@ export function TerminalView({
       <div className="terminal-area" ref={areaRef}>
         <div className="term-host" ref={containerRef} />
 
+        {closed !== undefined && onReconnect && (
+          <div className="reconnect-bar">
+            <span>Disconnected{closed ? ` — ${closed}` : ""}</span>
+            <button className="primary" onClick={onReconnect}>
+              Reconnect
+            </button>
+            {!IS_MOBILE && <span className="muted small">or press Enter</span>}
+          </div>
+        )}
+
         <div className="term-buttons" hidden={IS_MOBILE}>
           <button className="term-btn" onClick={() => openAiRef.current()} title={`Ask AI for a command (${AI_SHORTCUT})`}>
             <SparkleIcon size={16} />
@@ -320,18 +448,19 @@ export function TerminalView({
             className={`completion ${popupPos.above ? "above" : ""}`}
             style={{ left: popupPos.left, top: popupPos.top }}
           >
-            {suggestions.map((cmd, i) => (
+            {suggestions.map((item, i) => (
               <button
-                key={cmd}
-                className={i === 0 ? "first" : ""}
+                key={item.kind + item.label}
+                className={i === selected ? "first" : ""}
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  accept(cmd);
+                  accept(item);
                 }}
               >
-                <span className="typed">{lineRef.current.text}</span>
-                <span className="rest">{cmd.slice(lineRef.current.text.length)}</span>
-                {i === 0 && <kbd>→</kbd>}
+                <span className={`kind ${item.kind}`}>{KIND_MARK[item.kind]}</span>
+                <span className="label">{item.label}</span>
+                {item.detail && <span className="detail">{item.detail}</span>}
+                {i === selected && <kbd>{IS_MOBILE ? "tap" : "→"}</kbd>}
               </button>
             ))}
           </div>
@@ -406,7 +535,8 @@ export function TerminalView({
                 const term = termRef.current;
                 if (!term) return;
                 if (seq === null) return setCtrl(!ctrlRef.current);
-                if (label === "→" && suggestionsRef.current.length > 0) return accept(suggestionsRef.current[0]);
+                if (label === "→" && suggestionsRef.current.length > 0)
+                  return accept(suggestionsRef.current[selectedRef.current] ?? suggestionsRef.current[0]);
                 const isArrow = ["←", "↑", "↓", "→"].includes(label);
                 const out = isArrow ? (term.modes.applicationCursorKeysMode ? "\x1bO" : "\x1b[") + seq : seq;
                 if (ctrlRef.current && out.length === 1) {

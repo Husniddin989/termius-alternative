@@ -149,7 +149,7 @@ export function SettingsPage({ settings, onSettingsChange, onSnippetsChanged, sy
               <h2>Snippet library</h2>
               <p className="muted">
                 {LIBRARY_SNIPPETS.length} ready-made commands for Linux, Docker, Git, systemd, networking, databases and
-                more. They also power autocomplete while you type in a terminal (press → to accept a suggestion).
+                more.
               </p>
               <div>
                 <button className="secondary" onClick={addLibrary}>

@@ -1,4 +1,5 @@
 mod ai;
+mod complete;
 mod conn;
 mod forward;
 mod hostkey;
@@ -383,6 +384,21 @@ async fn ssh_connect(
 }
 
 #[tauri::command]
+async fn ssh_list_dir(state: State<'_, AppState>, id: String, dir: String) -> CmdResult<Vec<String>> {
+    state.sessions.list_dir(&id, &dir).await.map_err(err)
+}
+
+#[tauri::command]
+async fn ssh_history(state: State<'_, AppState>, id: String) -> CmdResult<Vec<String>> {
+    state.sessions.history(&id).await.map_err(err)
+}
+
+#[tauri::command]
+fn local_history() -> Vec<String> {
+    complete::local_history()
+}
+
+#[tauri::command]
 async fn ssh_write(state: State<'_, AppState>, id: String, data: Vec<u8>) -> CmdResult<()> {
     state.sessions.write(&id, data).await.map_err(err)
 }
@@ -584,6 +600,9 @@ pub fn run() {
             local_list,
             ssh_connect,
             ssh_write,
+            ssh_list_dir,
+            ssh_history,
+            local_history,
             ssh_resize,
             ssh_close,
             sftp_open,

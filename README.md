@@ -12,10 +12,12 @@
 - 🔑 **Keychain** — parol/passphrase'ni OS keychain'da saqlash (macOS Keychain, Windows Credential Manager, Linux Secret Service). Diskdagi JSON'da sir saqlanmaydi
 - 🧭 **Jump host** (ProxyJump) — boshqa saqlangan host orqali ulanish
 - 🛡  **Host key tekshiruvi** — yangi serverda fingerprint ko'rsatilib tasdiq so'raladi; kalit o'zgarsa ulanish rad etiladi
-- 🗂  **Ko'p tabli terminal** — xterm.js, 256 rang, avtomatik o'lcham
+- 🗂  **Ko'p tabli terminal** — xterm.js, 256 rang, avtomatik o'lcham; ulanish uzilsa **Reconnect** (yoki Enter) — terminal tarixi saqlanadi
 - 💻 **Lokal terminal** — kompyuteringizning o'z shell'i (zsh/bash/fish/PowerShell) alohida tabda
 - ⚡ **Snippets** — 127 ta tayyor buyruq (Linux, Docker, Git, systemd, tarmoq, DB, Kubernetes…) kategoriyalar bo'yicha; `<placeholder>` bor buyruqlar Enter'siz yoziladi
-- ⌨️ **Autocomplete** — terminalda yozayotganingizda tarix va snippetlardan taklif chiqadi, `→` bilan qabul qilinadi
+- ⌨️ **Autocomplete** — yozayotganingizda buyruqlar, subcommand va flag'lar (git, docker, systemctl, kubectl, apt… — tavsifi bilan),
+  serverdagi papka/fayllar va serverning o'z shell tarixi (`~/.bash_history`, `~/.zsh_history`) taklif qilinadi;
+  `→` yoki `Tab` bilan qabul, `↑`/`↓` bilan tanlash, `Esc` bilan yopish
 - ✨ **AI yordamchi** — ⌘K / Ctrl+Shift+K: istalgan tilda yozing ("eng katta fayllarni top"), AI buyruqni tayyorlaydi; Insert / Run / Save as snippet. Xavfli buyruqlar (rm -rf, reboot…) model nima desa ham alohida belgilanadi
   - **Lokal AI — bepul, offline** (odatiy): [Ollama](https://ollama.com) orqali `qwen2.5-coder` modellari; Settings'dan bir tugma bilan yuklab olinadi, hech narsa kompyuterdan chiqmaydi
   - **Claude API** — eng yaxshi sifat; o'z Anthropic API kalitingiz bilan, kalit keychain'da saqlanadi
@@ -57,24 +59,28 @@ npm run tauri dev      # development
 npm run tauri build    # installer / bundle yaratish
 ```
 
-## macOS ilova
+## Yuklab olish va relizlar
 
-Tayyor `.dmg` (Apple Silicon + Intel) GitHub Actions'da yig'iladi: **Actions → macOS app → Run workflow**
-(yoki `v0.2.0` kabi tag push qiling, yoki commit xabarida `[macos]` bilan main'ga push qiling). Tayyor bo'lgach u **Releases** bo'limida paydo bo'ladi.
+- **Sayt** (`website/`): imkoniyatlar, skrinshotlar va har bir tizim uchun yuklab olish tugmalari (EN/UZ).
+  GitHub Pages'ga `Website` workflow chiqaradi — bir marta **Settings → Pages → Source: GitHub Actions** ni yoqing.
+- **Release** workflow macOS (`.dmg`, Apple Silicon + Intel), Windows (`.exe`), Linux (`.AppImage`, `.deb`) va
+  Android (`.apk`) ni yig'ib, doimiy nomlar bilan GitHub Release'ga qo'yadi, sayt esa
+  `releases/latest/download/<fayl>` ga havola qiladi. Ishga tushirish: **Actions → Release → Run workflow**,
+  `v0.2.0` kabi tag, yoki commit xabarida `[release]` bilan main'ga push.
+- APK imzolanishi uchun repo secret'lari kerak: `ANDROID_KEYSTORE_B64` (`base64 -w0 termius-release.jks`)
+  va `ANDROID_KEYSTORE_PASSWORD`. Ular bo'lmasa relizda APK bo'lmaydi.
+- Boshqalar yuklab olishi uchun repo **public** bo'lishi kerak (private repo relizlari va Pages faqat sizga ko'rinadi).
 
-1. `.dmg` ni yuklab oching va **Termius Alternative** ni **Applications** papkasiga torting.
-2. Ilova Apple tomonidan notarize qilinmagan, shuning uchun birinchi ochishdan oldin Terminal'da bir marta:
-   ```bash
-   xattr -dr com.apple.quarantine "/Applications/Termius Alternative.app"
-   ```
-
-O'zingiz yig'moqchi bo'lsangiz: `npm run tauri build` → `src-tauri/target/release/bundle/macos/Termius Alternative.app`.
-`tauri dev` bilan bir xil ma'lumotlar papkasi ishlatiladi, shuning uchun hostlaringiz joyida qoladi.
+**macOS:** ilova Apple tomonidan notarize qilinmagan, birinchi ochishdan oldin Terminal'da bir marta:
+```bash
+xattr -dr com.apple.quarantine "/Applications/Termius Alternative.app"
+```
 
 ## Android
 
-Telefon versiyasida hostlar, SSH terminal (Esc/Tab/Ctrl/strelkalar paneli bilan), Known Hosts va mavzular bor.
-Parollar Android'da ilovaning shaxsiy papkasida saqlanadi (boshqa ilovalar o'qiy olmaydi).
+Telefon versiyasida hostlar, SSH terminal (Esc/Tab/Ctrl/strelkalar paneli, barmoq bilan scroll), Known Hosts, sync va mavzular bor.
+Sessiyalar ochiq bo'lsa foreground service (bildirishnoma bilan) ilovani fonda ham tirik saqlaydi; tarmoq uzilsa
+ilova o'zi qayta ulanadi. Parollar Android'da ilovaning shaxsiy papkasida saqlanadi (boshqa ilovalar o'qiy olmaydi).
 
 Talablar: Android SDK (platform 36, build-tools), NDK 27, JDK 17+.
 
@@ -110,7 +116,8 @@ src/                      React UI
   App.tsx                 oyna: yuqori tablar (Home, SFTP, sessiyalar) + chap menyu
   api.ts                  Tauri buyruqlari + SshSession (stream buferi)
   useConnector.tsx        keychain → so'rov → qayta urinish oqimi
-  completion.ts           terminal qatorini kuzatish, tarix, autocomplete
+  completion.ts           terminal qatorini kuzatish, autocomplete (buyruq/flag/yo'l/tarix)
+  commandSpecs.ts         buyruqlar, subcommand va flag'lar lug'ati
   themes.ts               rang mavzulari (UI + terminal)
   snippetLibrary.ts       tayyor buyruqlar kutubxonasi
   components/

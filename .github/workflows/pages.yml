@@ -1,0 +1,52 @@
+name: Website
+
+# Publishes website/ to GitHub Pages. Turn Pages on once in
+# Settings → Pages → Source: "GitHub Actions"; until then this skips quietly.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["website/**", ".github/workflows/pages.yml"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Is GitHub Pages enabled?
+        id: pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh api "repos/${{ github.repository }}/pages" --silent 2>/dev/null; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::GitHub Pages is not enabled for this repository yet (Settings → Pages → Source: GitHub Actions)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.pages.outputs.enabled == 'true'
+
+      - uses: actions/configure-pages@v5
+        if: steps.pages.outputs.enabled == 'true'
+
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.pages.outputs.enabled == 'true'
+        with:
+          path: website
+
+      - id: deploy
+        if: steps.pages.outputs.enabled == 'true'
+        uses: actions/deploy-pages@v4

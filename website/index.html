@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Termius Alternative — free SSH client for desktop and Android</title>
+  <meta name="description" content="Free, open-source SSH client for macOS, Windows, Linux and Android: hosts and groups, encrypted sync, smart autocomplete, local AI, SFTP and port forwarding.">
+  <meta property="og:title" content="Termius Alternative — free SSH client">
+  <meta property="og:description" content="Hosts, encrypted sync, smart autocomplete, local AI, SFTP and port forwarding — on desktop and Android.">
+  <meta property="og:image" content="assets/desktop-terminal.jpg">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top"><img src="assets/icon.svg" alt="" width="28" height="28"> Termius Alternative</a>
+      <nav class="links">
+        <a href="#features" data-i18n="navFeatures">Features</a>
+        <a href="#download" data-i18n="navDownload">Download</a>
+        <a href="https://github.com/Husniddin989/termius-alternative" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+      <div class="lang" role="group" aria-label="Language">
+        <button data-lang="en" aria-pressed="true">EN</button>
+        <button data-lang="uz" aria-pressed="false">UZ</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero wrap">
+      <div class="hero-copy">
+        <span class="pill" data-i18n="pill">Free &amp; open source</span>
+        <h1 data-i18n="heroTitle">Your servers, one tap away — on every device.</h1>
+        <p class="lead" data-i18n="heroLead">A fast SSH client for macOS, Windows, Linux and Android. Hosts, passwords and keys sync end-to-end encrypted, and the terminal helps you type.</p>
+        <div class="cta">
+          <a class="btn primary" id="hero-download" href="#download">
+            <span data-i18n="downloadFor">Download for</span> <span id="hero-os">your device</span>
+          </a>
+          <a class="btn ghost" href="#download" data-i18n="allDownloads">All downloads</a>
+        </div>
+        <p class="fine" data-i18n="heroFine">No account, no subscription. Your data stays on your devices.</p>
+      </div>
+      <div class="hero-shots">
+        <img class="shot desktop" src="assets/desktop-terminal.jpg" alt="Terminal with autocomplete suggestions" width="1280" height="780">
+        <img class="shot phone" src="assets/phone-hosts.jpg" alt="Hosts on Android" width="390" height="844">
+      </div>
+    </section>
+
+    <section id="features" class="wrap features">
+      <h2 data-i18n="featuresTitle">Everything you need for daily server work</h2>
+      <div class="grid">
+        <article>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M7 15h10"/></svg></div>
+          <h3 data-i18n="f1t">Autocomplete that knows the shell</h3>
+          <p data-i18n="f1d">Suggests commands, subcommands and flags with a short explanation, files and folders on the server, and your own server history. Accept with → or Tab.</p>
+        </article>
+        <article>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/></svg></div>
+          <h3 data-i18n="f2t">Encrypted sync</h3>
+          <p data-i18n="f2d">Hosts, saved passwords and private keys follow you from computer to phone through a secret gist in your own GitHub account — encrypted on the device, GitHub never sees them.</p>
+        </article>
+        <article>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></div>
+          <h3 data-i18n="f3t">AI that writes the command</h3>
+          <p data-i18n="f3d">Describe what you need in any language and get the command. Runs locally and free with Ollama, or with your own Claude API key. Dangerous commands are flagged.</p>
+        </article>
+        <article>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg></div>
+          <h3 data-i18n="f4t">Hosts, groups, jump hosts</h3>
+          <p data-i18n="f4d">Organise servers in groups, connect with a password, a key or your SSH agent, and hop through a bastion. Passwords live in the system keychain.</p>
+        </article>
+        <article>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg></div>
+          <h3 data-i18n="f5t">A real terminal on your phone</h3>
+          <p data-i18n="f5d">Extra keys (Esc, Tab, Ctrl, arrows), swipe to scroll, sessions that stay connected in the background and reconnect by themselves after a network change.</p>
+        </article>
+        <article>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M3 8l4-4 4 4"/><path d="M17 20V4M21 16l-4 4-4-4"/></svg></div>
+          <h3 data-i18n="f6t">SFTP and port forwarding</h3>
+          <p data-i18n="f6d">Drag and drop files between your computer and the server. Local (-L) and SOCKS (-D) tunnels you can start and stop with one click.</p>
+        </article>
+        <article>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+          <h3 data-i18n="f7t">Secure by default</h3>
+          <p data-i18n="f7d">Host keys are verified like OpenSSH does, and a changed key blocks the connection. Written in Rust, no telemetry.</p>
+        </article>
+        <article>
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></div>
+          <h3 data-i18n="f8t">Themes</h3>
+          <p data-i18n="f8d">Midnight, Ocean, Amethyst, Forest, Ember, Daylight — or follow the system. The terminal colours change with the theme.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="wrap showcase">
+      <figure>
+        <img src="assets/desktop-hosts.jpg" alt="Hosts and groups" loading="lazy" width="1280" height="780">
+        <figcaption data-i18n="cap1">Hosts and groups, with the OS of every server detected on first connect.</figcaption>
+      </figure>
+      <figure class="narrow">
+        <img src="assets/phone-terminal.jpg" alt="Terminal on Android" loading="lazy" width="390" height="844">
+        <figcaption data-i18n="cap2">The same hosts on your phone.</figcaption>
+      </figure>
+    </section>
+
+    <section id="download" class="wrap download">
+      <h2 data-i18n="downloadTitle">Download</h2>
+      <p class="sub" data-i18n="downloadSub">Always the latest version. Free for personal and commercial use.</p>
+      <div class="cards">
+        <article class="card" data-os="mac">
+          <h3>macOS</h3>
+          <p class="meta" data-i18n="macMeta">Apple Silicon and Intel · macOS 11+</p>
+          <a class="btn primary" data-file="TermiusAlternative-macOS.dmg"><span data-i18n="dl">Download</span> .dmg</a>
+          <details>
+            <summary data-i18n="howInstall">How to install</summary>
+            <ol>
+              <li data-i18n="mac1">Open the .dmg and drag the app to Applications.</li>
+              <li><span data-i18n="mac2">The app isn't notarized by Apple yet, so run this once in Terminal before the first launch:</span>
+                <div class="code"><code>xattr -dr com.apple.quarantine "/Applications/Termius Alternative.app"</code><button class="copy" data-i18n="copy">Copy</button></div>
+              </li>
+              <li data-i18n="mac3">Or: System Settings → Privacy &amp; Security → “Open Anyway”.</li>
+            </ol>
+          </details>
+        </article>
+        <article class="card" data-os="windows">
+          <h3>Windows</h3>
+          <p class="meta" data-i18n="winMeta">Windows 10 and 11 · 64-bit</p>
+          <a class="btn primary" data-file="TermiusAlternative-Windows-Setup.exe"><span data-i18n="dl">Download</span> .exe</a>
+          <details>
+            <summary data-i18n="howInstall">How to install</summary>
+            <ol>
+              <li data-i18n="win1">Run the installer.</li>
+              <li data-i18n="win2">If SmartScreen warns, click “More info” → “Run anyway” (the installer isn't code-signed yet).</li>
+            </ol>
+          </details>
+        </article>
+        <article class="card" data-os="linux">
+          <h3>Linux</h3>
+          <p class="meta" data-i18n="linuxMeta">x86_64 · AppImage or Debian/Ubuntu package</p>
+          <div class="pair">
+            <a class="btn primary" data-file="TermiusAlternative-Linux.AppImage">.AppImage</a>
+            <a class="btn ghost" data-file="TermiusAlternative-Linux.deb">.deb</a>
+          </div>
+          <details>
+            <summary data-i18n="howInstall">How to install</summary>
+            <ol>
+              <li><span data-i18n="lin1">AppImage: make it executable and run it:</span>
+                <div class="code"><code>chmod +x TermiusAlternative-Linux.AppImage &amp;&amp; ./TermiusAlternative-Linux.AppImage</code><button class="copy" data-i18n="copy">Copy</button></div>
+              </li>
+              <li><span data-i18n="lin2">Debian/Ubuntu:</span>
+                <div class="code"><code>sudo apt install ./TermiusAlternative-Linux.deb</code><button class="copy" data-i18n="copy">Copy</button></div>
+              </li>
+            </ol>
+          </details>
+        </article>
+        <article class="card" data-os="android">
+          <h3>Android</h3>
+          <p class="meta" data-i18n="androidMeta">Android 7+ · arm64 phones</p>
+          <a class="btn primary" data-file="TermiusAlternative-Android.apk"><span data-i18n="dl">Download</span> .apk</a>
+          <details>
+            <summary data-i18n="howInstall">How to install</summary>
+            <ol>
+              <li data-i18n="and1">Open the downloaded .apk.</li>
+              <li data-i18n="and2">Allow “Install unknown apps” for your browser or file manager when Android asks.</li>
+              <li data-i18n="and3">Updates install over the old version — your hosts stay.</li>
+            </ol>
+          </details>
+        </article>
+      </div>
+      <p class="sub small"><a id="all-releases" href="https://github.com/Husniddin989/termius-alternative/releases" target="_blank" rel="noopener" data-i18n="allReleases">All versions and release notes →</a></p>
+    </section>
+
+    <section class="wrap faq">
+      <h2 data-i18n="faqTitle">Questions</h2>
+      <details>
+        <summary data-i18n="q1">Is it really free?</summary>
+        <p data-i18n="a1">Yes. There is no account and no paid plan. The source code is on GitHub.</p>
+      </details>
+      <details>
+        <summary data-i18n="q2">Where are my passwords stored?</summary>
+        <p data-i18n="a2">In the system keychain (macOS Keychain, Windows Credential Manager, Secret Service on Linux), or in the app's private storage on Android. Sync uploads them only encrypted with your sync password.</p>
+      </details>
+      <details>
+        <summary data-i18n="q3">How does sync work?</summary>
+        <p data-i18n="a3">Settings → Sync: paste a GitHub token with only the “gist” permission and choose a sync password. Do the same on your other devices with the same password. The app syncs on start, every few minutes and after every change.</p>
+      </details>
+      <details>
+        <summary data-i18n="q4">Does the AI send my data anywhere?</summary>
+        <p data-i18n="a4">Not with the default local AI (Ollama) — everything stays on your computer. If you choose the Claude API, your request goes to Anthropic with your own key.</p>
+      </details>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <span>© <span id="year"></span> Termius Alternative</span>
+    <span class="muted" data-i18n="notAffiliated">Independent open-source project, not affiliated with Termius.</span>
+    <a href="https://github.com/Husniddin989/termius-alternative" target="_blank" rel="noopener">GitHub</a>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

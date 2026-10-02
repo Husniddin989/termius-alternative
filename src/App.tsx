@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm, message } from "@tauri-apps/plugin-dialog";
 import {
   type ForwardRule,
@@ -45,8 +45,19 @@ interface TerminalTab {
   key: string;
   title: string;
   os: string | null;
+  /** The saved host this tab connects to; null for the local terminal. */
+  host: Host | null;
   session: SshSession;
   closed: boolean;
+  /** Dropped by the network rather than ended by the user (exit, logout). */
+  lost: boolean;
+}
+
+declare global {
+  interface Window {
+    /** Present in the Android app: keeps the process alive while sessions are open. */
+    AndroidSessions?: { setCount(count: number): void };
+  }
 }
 
 const SECTIONS = [
@@ -159,7 +170,7 @@ export default function App() {
     const session = await connectWith(host, (req) => SshSession.open(req));
     if (!session) return;
     const os = session.os ?? host.os ?? null;
-    setTabs((t) => [...t, { key: session.id, title: host.label, os, session, closed: false }]);
+    setTabs((t) => [...t, { key: session.id, title: host.label, os, host, session, closed: false, lost: false }]);
     setActive(session.id);
     if (host.id && session.os && session.os !== host.os) {
       await hostsApi.save({ ...host, os: session.os });
@@ -170,7 +181,10 @@ export default function App() {
   const openLocalTerminal = async () => {
     try {
       const session = await SshSession.openLocal();
-      setTabs((t) => [...t, { key: session.id, title: "Local", os: "local", session, closed: false }]);
+      setTabs((t) => [
+        ...t,
+        { key: session.id, title: "Local", os: "local", host: null, session, closed: false, lost: false },
+      ]);
       setActive(session.id);
     } catch (e) {
       await message(String(e), { title: "Local terminal", kind: "error" });
@@ -200,9 +214,59 @@ export default function App() {
 
   // ---- Tabs -----------------------------------------------------------------
 
-  const markClosed = useCallback((key: string) => {
-    setTabs((t) => t.map((tab) => (tab.key === key ? { ...tab, closed: true } : tab)));
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
+  const hostsRef = useRef(hosts);
+  hostsRef.current = hosts;
+  const reconnectRef = useRef<(key: string, silent?: boolean) => Promise<void>>(async () => {});
+
+  const markClosed = useCallback((key: string, reason: string | null) => {
+    const lost = reason === "connection lost";
+    setTabs((t) => t.map((tab) => (tab.key === key ? { ...tab, closed: true, lost } : tab)));
+    // Phones switch networks all the time: try once on our own while the app is on screen.
+    if (lost && IS_MOBILE && document.visibilityState === "visible")
+      setTimeout(() => void reconnectRef.current(key, true), 1500);
   }, []);
+
+  const reconnecting = useRef(new Set<string>());
+  const reconnect = useCallback(
+    async (key: string, silent = false) => {
+      const tab = tabsRef.current.find((t) => t.key === key);
+      if (!tab || !tab.closed || reconnecting.current.has(key)) return;
+      reconnecting.current.add(key);
+      try {
+        const host = tab.host && (hostsRef.current.find((h) => h.id === tab.host!.id) ?? tab.host);
+        const session = host
+          ? await connectWith(host, (req) => SshSession.open(req), { silent })
+          : await SshSession.openLocal();
+        if (!session) return;
+        setTabs((t) => t.map((x) => (x.key === key ? { ...x, session, closed: false, lost: false } : x)));
+      } catch (e) {
+        if (!silent) await message(String(e), { title: "Reconnect", kind: "error" });
+      } finally {
+        reconnecting.current.delete(key);
+      }
+    },
+    [connectWith],
+  );
+  reconnectRef.current = reconnect;
+
+  // Android: a foreground service keeps the app alive while sessions are open.
+  const openCount = tabs.filter((t) => !t.closed).length;
+  useEffect(() => {
+    window.AndroidSessions?.setCount(openCount);
+  }, [openCount]);
+
+  // Back in the app after the network dropped a session: reconnect quietly.
+  useEffect(() => {
+    if (!IS_MOBILE) return;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      for (const t of tabsRef.current) if (t.closed && t.lost) void reconnect(t.key, true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [reconnect]);
 
   const closeTab = (key: string) => {
     tabs.find((t) => t.key === key)?.session.close();
@@ -339,7 +403,8 @@ export default function App() {
             includeOutput={settings.aiIncludeOutput}
             termTheme={termTheme}
             aiLabel={settings.aiProvider === "ollama" ? `local · ${settings.ollamaModel}` : settings.aiModel}
-            onClosed={() => markClosed(tab.key)}
+            onClosed={(reason) => markClosed(tab.key, reason)}
+            onReconnect={() => reconnect(tab.key)}
             onSnippetSaved={reloadSnippets}
           />
         ))}

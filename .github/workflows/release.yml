@@ -1,0 +1,181 @@
+name: Release
+
+# Builds the app for macOS, Windows, Linux and Android and publishes a GitHub
+# release whose files have fixed names, so the website can always link to
+# releases/latest/download/<name>.
+#
+# Run it from the Actions tab, push a tag like v0.2.0, or push to main with
+# "[release]" in the commit message. (Builds use a lot of runner minutes, so
+# ordinary pushes don't release.)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    if: github.event_name != 'push' || github.ref_type == 'tag' || contains(github.event.head_commit.message, '[release]')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macOS
+            args: --target universal-apple-darwin --bundles dmg
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - os: windows-latest
+            name: Windows
+            args: --bundles nsis
+          - os: ubuntu-22.04
+            name: Linux
+            args: --bundles appimage,deb
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libdbus-1-dev libssl-dev file
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.name }}
+
+      - run: npm ci
+      - run: npm run tauri build -- ${{ matrix.args }}
+
+      - name: Collect installers under fixed names
+        shell: bash
+        run: |
+          mkdir -p out
+          b=src-tauri/target
+          case "${{ matrix.name }}" in
+            macOS)   cp $b/universal-apple-darwin/release/bundle/dmg/*.dmg out/TermiusAlternative-macOS.dmg ;;
+            Windows) cp $b/release/bundle/nsis/*-setup.exe out/TermiusAlternative-Windows-Setup.exe ;;
+            Linux)   cp $b/release/bundle/appimage/*.AppImage out/TermiusAlternative-Linux.AppImage
+                     cp $b/release/bundle/deb/*.deb out/TermiusAlternative-Linux.deb ;;
+          esac
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+
+  android:
+    if: github.event_name != 'push' || github.ref_type == 'tag' || contains(github.event.head_commit.message, '[release]')
+    runs-on: ubuntu-22.04
+    env:
+      # The APK is only published when it can be signed with the app's key,
+      # so phones can update over the installed version.
+      HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+
+      - uses: actions/setup-node@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: env.HAS_KEY == 'true'
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        if: env.HAS_KEY == 'true'
+        with:
+          workspaces: src-tauri
+          key: android
+
+      - name: Build APK
+        if: env.HAS_KEY == 'true'
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          npm ci
+          npm run tauri android build -- --apk --target aarch64
+
+      - name: Sign APK
+        if: env.HAS_KEY == 'true'
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          tools="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)"
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > release.jks
+          mkdir -p out
+          "$tools/zipalign" -p 4 src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk aligned.apk
+          "$tools/apksigner" sign --ks release.jks --ks-pass env:ANDROID_KEYSTORE_PASSWORD --out out/TermiusAlternative-Android.apk aligned.apk
+          rm release.jks
+          "$tools/apksigner" verify out/TermiusAlternative-Android.apk
+
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          name: Android
+          path: out/*
+          if-no-files-found: error
+
+      - name: No signing key
+        if: env.HAS_KEY != 'true'
+        run: echo "::warning::ANDROID_KEYSTORE_B64 / ANDROID_KEYSTORE_PASSWORD secrets are not set, so this release has no APK."
+
+  publish:
+    needs: [desktop, android]
+    if: always() && needs.desktop.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          if [ "${{ github.ref_type }}" = "tag" ]; then tag="${{ github.ref_name }}"; else tag="v${version}-build.${{ github.run_number }}"; fi
+          ls -la dist
+          cat > notes.md <<NOTES
+          Download the file for your system — or get it from the website.
+
+          | System | File |
+          |---|---|
+          | macOS (Apple Silicon + Intel) | TermiusAlternative-macOS.dmg |
+          | Windows 10/11 | TermiusAlternative-Windows-Setup.exe |
+          | Linux | TermiusAlternative-Linux.AppImage / .deb |
+          | Android | TermiusAlternative-Android.apk |
+
+          **macOS:** the app is not notarized yet. Before the first launch run once in Terminal:
+          \`xattr -dr com.apple.quarantine "/Applications/Termius Alternative.app"\`
+          NOTES
+          sed -i 's/^          //' notes.md
+          gh release create "$tag" dist/* --title "Termius Alternative $tag" --notes-file notes.md --target "${{ github.sha }}" --latest

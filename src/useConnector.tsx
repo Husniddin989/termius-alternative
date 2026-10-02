@@ -61,6 +61,14 @@ async function remember(host: Host, auth: Auth, save: string | null): Promise<st
 
 const toTarget = (h: Host, auth: Auth) => ({ host: h.host, port: h.port, username: h.username, auth });
 
+/** Errors where asking for the password again could help. */
+const isAuthError = (e: string) => /authentication failed|could not load key|passphrase|decrypt/i.test(e);
+
+export interface ConnectOptions {
+  /** Never show dialogs: fail with an error instead (used for automatic reconnects). */
+  silent?: boolean;
+}
+
 /**
  * Resolves credentials for a host (and its jump host) from the keychain or by
  * asking the user, runs `op`, and re-asks with the error shown when it fails.
@@ -82,7 +90,7 @@ export function useConnector(hosts: Host[]) {
     new Promise<Credentials | null>((resolve) => setAuthPrompt({ host, error, resolve }));
 
   const connectWith = useCallback(
-    async <T,>(host: Host, op: (req: ConnectRequest) => Promise<T>): Promise<T | null> => {
+    async <T,>(host: Host, op: (req: ConnectRequest) => Promise<T>, opts: ConnectOptions = {}): Promise<T | null> => {
       const jumpHost = host.jumpHostId
         ? hostsRef.current.find((h) => h.id === host.jumpHostId) ?? null
         : null;
@@ -100,6 +108,7 @@ export function useConnector(hosts: Host[]) {
       let error: string | null = storedJump.error ?? storedTarget.error;
 
       for (;;) {
+        if (opts.silent && ((jumpHost && !jump) || !target)) throw new Error("password needed");
         if (jumpHost && !jump) {
           const c = await askAuth(jumpHost, error);
           if (!c) return null;
@@ -125,8 +134,14 @@ export function useConnector(hosts: Host[]) {
           return result;
         } catch (e) {
           error = String(e);
+          if (opts.silent) throw e;
           if (/HOST KEY CHANGED|was not accepted|certificates are not supported/.test(error)) {
             await message(error, { title: "Connection refused", kind: "error" });
+            return null;
+          }
+          // Network trouble (timeout, unreachable…): the password is fine, don't ask again.
+          if (!isAuthError(error)) {
+            await message(error, { title: `Could not connect to ${host.label}`, kind: "error" });
             return null;
           }
           if (error.startsWith("jump host")) {
