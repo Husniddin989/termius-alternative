@@ -1,0 +1,48 @@
+name: macOS app
+
+# Builds a universal (Apple Silicon + Intel) .dmg and publishes it as a
+# GitHub release. Run it from the Actions tab, or push a tag like v0.2.0.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --target universal-apple-darwin
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('app-build-{0}', github.run_number) }}
+          releaseName: "Termius Alternative ${{ github.ref_type == 'tag' && github.ref_name || format('(build {0})', github.run_number) }}"
+          releaseBody: |
+            macOS universal app (Apple Silicon + Intel).
+
+            1. Download the .dmg below, open it and drag **Termius Alternative** into **Applications**.
+            2. The app is not notarized by Apple, so before the first launch run once in Terminal:
+               `xattr -dr com.apple.quarantine "/Applications/Termius Alternative.app"`
+          releaseDraft: false
+          prerelease: false

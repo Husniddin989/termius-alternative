@@ -57,6 +57,20 @@ npm run tauri dev      # development
 npm run tauri build    # installer / bundle yaratish
 ```
 
+## macOS ilova
+
+Tayyor `.dmg` (Apple Silicon + Intel) GitHub Actions'da yig'iladi: **Actions → macOS app → Run workflow**
+(yoki `v0.2.0` kabi tag push qiling). Tayyor bo'lgach u **Releases** bo'limida paydo bo'ladi.
+
+1. `.dmg` ni yuklab oching va **Termius Alternative** ni **Applications** papkasiga torting.
+2. Ilova Apple tomonidan notarize qilinmagan, shuning uchun birinchi ochishdan oldin Terminal'da bir marta:
+   ```bash
+   xattr -dr com.apple.quarantine "/Applications/Termius Alternative.app"
+   ```
+
+O'zingiz yig'moqchi bo'lsangiz: `npm run tauri build` → `src-tauri/target/release/bundle/macos/Termius Alternative.app`.
+`tauri dev` bilan bir xil ma'lumotlar papkasi ishlatiladi, shuning uchun hostlaringiz joyida qoladi.
+
 ## Android
 
 Telefon versiyasida hostlar, SSH terminal (Esc/Tab/Ctrl/strelkalar paneli bilan), Known Hosts va mavzular bor.
