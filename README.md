@@ -60,7 +60,7 @@ npm run tauri build    # installer / bundle yaratish
 ## macOS ilova
 
 Tayyor `.dmg` (Apple Silicon + Intel) GitHub Actions'da yig'iladi: **Actions → macOS app → Run workflow**
-(yoki `v0.2.0` kabi tag push qiling). Tayyor bo'lgach u **Releases** bo'limida paydo bo'ladi.
+(yoki `v0.2.0` kabi tag push qiling, yoki commit xabarida `[macos]` bilan main'ga push qiling). Tayyor bo'lgach u **Releases** bo'limida paydo bo'ladi.
 
 1. `.dmg` ni yuklab oching va **Termius Alternative** ni **Applications** papkasiga torting.
 2. Ilova Apple tomonidan notarize qilinmagan, shuning uchun birinchi ochishdan oldin Terminal'da bir marta:

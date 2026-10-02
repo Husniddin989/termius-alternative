@@ -1,10 +1,13 @@
 name: macOS app
 
 # Builds a universal (Apple Silicon + Intel) .dmg and publishes it as a
-# GitHub release. Run it from the Actions tab, or push a tag like v0.2.0.
+# GitHub release. Run it from the Actions tab, push a tag like v0.2.0, or
+# push to main with "[macos]" in the commit message. (macOS runner minutes
+# are expensive, so ordinary pushes don't build it.)
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags: ["v*"]
 
 permissions:
@@ -12,6 +15,7 @@ permissions:
 
 jobs:
   build:
+    if: github.event_name != 'push' || github.ref_type == 'tag' || contains(github.event.head_commit.message, '[macos]')
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
