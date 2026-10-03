@@ -62,7 +62,10 @@ npm run tauri build    # installer / bundle yaratish
 ## Yuklab olish va relizlar
 
 - **Sayt** (`website/`): imkoniyatlar, skrinshotlar va har bir tizim uchun yuklab olish tugmalari (EN/UZ).
-  GitHub Pages'ga `Website` workflow chiqaradi — bir marta **Settings → Pages → Source: GitHub Actions** ni yoqing.
+  Oddiy statik sayt — build kerak emas.
+  - **Vercel:** Add New → Project → shu repo'ni import qiling → **Root Directory: `website`**,
+    Framework Preset: **Other** → Deploy. Keyin main'ga har push saytni avtomatik yangilaydi.
+  - **GitHub Pages** (ixtiyoriy): **Settings → Pages → Source: GitHub Actions**, `Website` workflow chiqaradi.
 - **Release** workflow macOS (`.dmg`, Apple Silicon + Intel), Windows (`.exe`), Linux (`.AppImage`, `.deb`) va
   Android (`.apk`) ni yig'ib, doimiy nomlar bilan GitHub Release'ga qo'yadi, sayt esa
   `releases/latest/download/<fayl>` ga havola qiladi. Ishga tushirish: **Actions → Release → Run workflow**,
