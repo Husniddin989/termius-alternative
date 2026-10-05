@@ -3,6 +3,7 @@ mod complete;
 mod conn;
 mod forward;
 mod hostkey;
+mod import;
 mod keyfiles;
 mod knownhosts;
 mod localfs;
@@ -383,6 +384,28 @@ async fn ssh_connect(
         .map_err(err)
 }
 
+// ---- Import ---------------------------------------------------------------------
+
+/// Reads hosts from a file (SSH config or CSV), or from ~/.ssh/config when no path is given.
+#[tauri::command]
+fn import_preview(path: Option<String>) -> CmdResult<Vec<import::ImportedHost>> {
+    let ssh_dir = keyfiles::expand_home("~/.ssh");
+    let path = path.map(PathBuf::from).unwrap_or_else(|| ssh_dir.join("config"));
+    let size = std::fs::metadata(&path).map_err(|e| format!("Can't open {}: {e}", path.display()))?.len();
+    if size > 5 * 1024 * 1024 {
+        return Err("The file is too big to be a host list.".into());
+    }
+    let bytes = std::fs::read(&path).map_err(|e| format!("Can't read {}: {e}", path.display()))?;
+    let text = String::from_utf8_lossy(&bytes);
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned());
+    import::parse_any(&text, name.as_deref(), Some(&ssh_dir)).map_err(err)
+}
+
+#[tauri::command]
+fn import_hosts(state: State<'_, AppState>, hosts: Vec<import::ImportedHost>) -> CmdResult<import::ImportResult> {
+    import::save(&state.data_dir, hosts).map_err(err)
+}
+
 #[tauri::command]
 async fn ssh_list_dir(state: State<'_, AppState>, id: String, dir: String) -> CmdResult<Vec<String>> {
     state.sessions.list_dir(&id, &dir).await.map_err(err)
@@ -601,6 +624,8 @@ pub fn run() {
             ssh_connect,
             ssh_write,
             ssh_list_dir,
+            import_preview,
+            import_hosts,
             ssh_history,
             local_history,
             ssh_resize,

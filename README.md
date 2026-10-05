@@ -23,6 +23,9 @@
   - **Claude API** — eng yaxshi sifat; o'z Anthropic API kalitingiz bilan, kalit keychain'da saqlanadi
 - 📁 **SFTP** — ikki panel (Local | Remote): drag & drop bilan fayl ko'chirish (progress bilan), papka yaratish, nomini o'zgartirish, o'chirish
 - 🔏 **Known Hosts** — ishonilgan server kalitlarini ko'rish va o'chirish
+- 📥 **Import** — Hosts → Import: `~/.ssh/config`, istalgan SSH config fayli, Termius CLI eksporti
+  (`termius export-ssh-config`) yoki CSV (Termius shabloni: `Groups, Label, Hostname/IP, Port, Username, Password, SSH_KEY`).
+  Oldindan ko'rish, allaqachon bor hostlarni o'tkazib yuborish, ProxyJump → jump host, parollar keychain'ga
 - 🔀 **Port forwarding** — local (`-L`) va dynamic SOCKS5 (`-D`), start/stop bilan
 - 🔄 **Sinxronizatsiya** — hostlar, saqlangan parollar, private key'lar, snippetlar va forwarding qoidalari kompyuter ↔ telefon o'rtasida
   GitHub'dagi **secret Gist** orqali sinxronlanadi. Hammasi qurilmaning o'zida sync parol bilan shifrlanadi

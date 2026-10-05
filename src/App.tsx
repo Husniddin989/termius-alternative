@@ -21,6 +21,7 @@ import { SnippetsPage } from "./components/SnippetsPage";
 import { ForwardsPage } from "./components/ForwardsPage";
 import { KnownHostsPage } from "./components/KnownHostsPage";
 import { SettingsPage } from "./components/SettingsPage";
+import { ImportDialog } from "./components/ImportDialog";
 import { LIBRARY_SNIPPETS } from "./snippetLibrary";
 import { applyTheme, AUTO, storedThemeId, type Theme, terminalTheme } from "./themes";
 import { OsIcon } from "./components/OsIcon";
@@ -86,6 +87,8 @@ export default function App() {
   const [details, setDetails] = useState<Host | null>(null);
   const [sftpRequest, setSftpRequest] = useState<{ host: Host; nonce: number } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [settings, setSettings] = useState<Settings>({
     aiProvider: "ollama",
     ollamaUrl: "http://127.0.0.1:11434",
@@ -338,6 +341,11 @@ export default function App() {
 
           <main className="content">
             {loadError && <p className="error banner">{loadError}</p>}
+            {notice && (
+              <p className="notice banner" onClick={() => setNotice(null)}>
+                {notice}
+              </p>
+            )}
             {section === "hosts" && (
               <div className="with-details">
                 <HostsPage
@@ -351,6 +359,7 @@ export default function App() {
                   onDelete={deleteHost}
                   onQuickConnect={openTerminal}
                   onLocalTerminal={IS_MOBILE ? undefined : openLocalTerminal}
+                  onImport={IS_MOBILE ? undefined : () => setImportOpen(true)}
                 />
                 {details && (
                   <HostDetails
@@ -410,6 +419,17 @@ export default function App() {
         ))}
       </div>
       {dialogs}
+      {importOpen && (
+        <ImportDialog
+          hosts={hosts}
+          onClose={() => setImportOpen(false)}
+          onImported={(added) => {
+            reloadHosts();
+            setNotice(`Imported ${added} host${added === 1 ? "" : "s"}.`);
+            setTimeout(() => setNotice(null), 6000);
+          }}
+        />
+      )}
     </div>
   );
 }

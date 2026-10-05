@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { Host } from "../api";
 import { useContextMenu } from "./ContextMenu";
 import { OsIcon } from "./OsIcon";
-import { ChevronLeft, EditIcon, GridIcon, GroupIcon, ListIcon, PlusIcon, SearchIcon, TerminalIcon } from "./icons";
+import { ChevronLeft, DownloadIcon, EditIcon, GridIcon, GroupIcon, ListIcon, PlusIcon, SearchIcon, TerminalIcon } from "./icons";
 import { IS_MOBILE } from "../platform";
 
 interface Props {
@@ -17,6 +17,8 @@ interface Props {
   onQuickConnect: (host: Host) => void;
   /** Not offered on phones. */
   onLocalTerminal?: () => void;
+  /** Opens the import dialog (desktop only). */
+  onImport?: () => void;
 }
 
 /** Parses "user@host", "user@host:port" or "ssh user@host -p port". */
@@ -44,8 +46,19 @@ export function parseQuickConnect(input: string): Host | null {
 }
 
 export function HostsPage(props: Props) {
-  const { hosts, selectedId, onSelect, onConnect, onSftp, onNew, onDuplicate, onDelete, onQuickConnect, onLocalTerminal } =
-    props;
+  const {
+    hosts,
+    selectedId,
+    onSelect,
+    onConnect,
+    onSftp,
+    onNew,
+    onDuplicate,
+    onDelete,
+    onQuickConnect,
+    onLocalTerminal,
+    onImport,
+  } = props;
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState<string | null>(null);
   const [layout, setLayout] = useState<"grid" | "list">(IS_MOBILE ? "list" : "grid");
@@ -112,6 +125,11 @@ export function HostsPage(props: Props) {
             <TerminalIcon size={16} /> Local terminal
           </button>
         )}
+        {onImport && (
+          <button className="toolbar-btn" onClick={onImport}>
+            <DownloadIcon size={16} /> Import
+          </button>
+        )}
         <div className="spacer" />
         <button className={`icon-btn ${layout === "grid" ? "on" : ""}`} onClick={() => setLayout("grid")} title="Grid">
           <GridIcon size={17} />
@@ -157,9 +175,16 @@ export function HostsPage(props: Props) {
         {hosts.length === 0 && (
           <div className="empty-state">
             <p>No hosts yet. Add one, or type <code>ssh user@hostname</code> above to connect right away.</p>
-            <button className="primary" onClick={() => onNew(null)}>
-              <PlusIcon size={16} /> New host
-            </button>
+            <div className="empty-actions">
+              <button className="primary" onClick={() => onNew(null)}>
+                <PlusIcon size={16} /> New host
+              </button>
+              {onImport && (
+                <button className="secondary" onClick={onImport}>
+                  <DownloadIcon size={16} /> Import from Termius / SSH config
+                </button>
+              )}
+            </div>
           </div>
         )}
         {hosts.length > 0 && sorted.length === 0 && (

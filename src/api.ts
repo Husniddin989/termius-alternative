@@ -167,6 +167,26 @@ export const secretsApi = {
   remove: (hostId: string) => changed(invoke<void>("secret_delete", { hostId })),
 };
 
+/** A host read from an SSH config or CSV file, before it is saved. */
+export interface ImportedHost {
+  label: string;
+  host: string;
+  port: number;
+  username: string;
+  group: string | null;
+  keyPath: string | null;
+  keyText: string | null;
+  password: string | null;
+  /** ProxyJump target: another host's label or user@host:port. */
+  jump: string | null;
+}
+
+export const importApi = {
+  /** Hosts in a file (SSH config or CSV); ~/.ssh/config when no path is given. */
+  preview: (path: string | null) => invoke<ImportedHost[]>("import_preview", { path }),
+  save: (hosts: ImportedHost[]) => changed(invoke<{ added: number; skipped: number }>("import_hosts", { hosts })),
+};
+
 export interface SyncStatus {
   enabled: boolean;
   /** GitHub account holding the vault. */

@@ -166,6 +166,10 @@ input::-webkit-inner-spin-button {
   color: var(--danger);
   white-space: pre-wrap;
 }
+.notice.banner {
+  margin: 12px 24px 0;
+  cursor: pointer;
+}
 .error.banner {
   padding: 10px 24px;
 }
@@ -1617,4 +1621,122 @@ html.mobile .term-host {
 .keybar button.on {
   color: var(--accent-ink);
   background: var(--accent);
+}
+
+/* ---- Import ---- */
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.import-modal {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+}
+.import-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.import-sources {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.import-source {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 14px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.import-source:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.import-source svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.import-help summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+.import-help pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font: 12px "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.import-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 46vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.modal label.import-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.modal label.import-row:last-child {
+  border-bottom: 0;
+}
+.modal label.import-row.dup {
+  opacity: 0.55;
+  cursor: default;
+}
+.import-row input,
+.select-all input {
+  width: auto;
+}
+.import-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.import-main > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.import-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  background: var(--surface-3);
+  border-radius: 999px;
+}
+@media (max-width: 560px) {
+  .import-sources {
+    grid-template-columns: 1fr;
+  }
 }
