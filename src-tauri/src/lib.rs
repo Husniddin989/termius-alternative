@@ -390,7 +390,7 @@ async fn ssh_connect(
 #[tauri::command]
 fn import_preview(path: Option<String>) -> CmdResult<Vec<import::ImportedHost>> {
     let ssh_dir = keyfiles::expand_home("~/.ssh");
-    let path = path.map(PathBuf::from).unwrap_or_else(|| ssh_dir.join("config"));
+    let path = path.map(|p| keyfiles::expand_home(&p)).unwrap_or_else(|| ssh_dir.join("config"));
     let size = std::fs::metadata(&path).map_err(|e| format!("Can't open {}: {e}", path.display()))?.len();
     if size > 5 * 1024 * 1024 {
         return Err("The file is too big to be a host list.".into());

@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { type Host, type ImportedHost, importApi } from "../api";
-import { CloseIcon, FileIcon, KeyIcon, LockIcon } from "./icons";
+import { CloseIcon, DownloadIcon, FileIcon, KeyIcon, LockIcon } from "./icons";
+
+/** Where `termius export-ssh-config` writes. */
+const TERMIUS_EXPORT = "~/.termius/sshconfig";
 
 interface Props {
   hosts: Host[];
@@ -39,7 +42,12 @@ export function ImportDialog({ hosts, onClose, onImported }: Props) {
       setPicked(new Set(found.flatMap((it, i) => (hosts.some((h) => sameTarget(h, it)) ? [] : [i]))));
       if (found.length === 0) setError("No hosts found in this file.");
     } catch (e) {
-      setError(String(e));
+      const missing = /No such file|cannot find the file|os error 2/i.test(String(e));
+      setError(
+        missing && path === TERMIUS_EXPORT
+          ? `${TERMIUS_EXPORT} doesn't exist yet. Run the Termius CLI commands below first.`
+          : String(e),
+      );
     } finally {
       setBusy(false);
     }
@@ -96,7 +104,14 @@ export function ImportDialog({ hosts, onClose, onImported }: Props) {
                 <FileIcon size={20} />
                 <span>
                   <strong>Choose a file…</strong>
-                  <span className="muted small block">CSV, SSH config or a Termius export</span>
+                  <span className="muted small block">CSV or any SSH config file</span>
+                </span>
+              </button>
+              <button className="import-source" disabled={busy} onClick={() => load(TERMIUS_EXPORT)}>
+                <DownloadIcon size={20} />
+                <span>
+                  <strong>Termius export</strong>
+                  <span className="muted small block">{TERMIUS_EXPORT} from the Termius CLI</span>
                 </span>
               </button>
               <button className="import-source" disabled={busy} onClick={() => load(null)}>
@@ -114,13 +129,14 @@ export function ImportDialog({ hosts, onClose, onImported }: Props) {
                 file:
               </p>
               <pre>
-                {`brew install termius        # or: pip install termius
-termius login
-termius pull
-termius export-ssh-config    # writes ./termius/sshconfig`}
+                {`python3 -m venv ~/.termius-cli
+~/.termius-cli/bin/pip install termius "setuptools<81"
+~/.termius-cli/bin/termius login
+~/.termius-cli/bin/termius pull
+~/.termius-cli/bin/termius export-ssh-config`}
               </pre>
               <p className="muted small">
-                Then choose <code>termius/sshconfig</code> here. If that doesn't work for your account, list your hosts
+                Then click <strong>Termius export</strong> above. If the CLI can't open your account, list your hosts
                 in a spreadsheet with the columns <code>Label, Hostname/IP, Port, Username, Password, Groups</code>,
                 save it as CSV and import that.
               </p>
