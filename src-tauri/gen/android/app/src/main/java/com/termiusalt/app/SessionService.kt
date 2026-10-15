@@ -33,7 +33,7 @@ class SessionService : Service() {
     }
     if (wakeLock == null) {
       val power = getSystemService(Context.POWER_SERVICE) as PowerManager
-      wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TermiusAlternative:ssh").apply {
+      wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Myterm:ssh").apply {
         setReferenceCounted(false)
         acquire()
       }
@@ -66,7 +66,7 @@ class SessionService : Service() {
     @Suppress("DEPRECATION")
     val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
     return builder
-      .setContentTitle("Termius Alternative")
+      .setContentTitle("Myterm")
       .setContentText(text)
       .setSmallIcon(R.mipmap.ic_launcher)
       .setContentIntent(open)

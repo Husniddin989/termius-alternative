@@ -1,4 +1,7 @@
-# Termius Alternative
+# Myterm
+
+> Avvalgi nomi: *Termius Alternative*. Ichki identifikator (`com.termiusalt.app`), keychain yozuvlari va sync
+> fayli o'zgarmagan — eski versiyadagi hostlar, parollar va sync joyida qoladi.
 
 [Termius](https://termius.com/) ga o'xshash, ochiq va yengil, cross-platform SSH klient.
 **Tauri 2** (Rust) + **React** + **xterm.js** asosida qurilgan — Windows, macOS va Linux uchun bitta kod bazasi.
@@ -79,7 +82,7 @@ npm run tauri build    # installer / bundle yaratish
 
 **macOS:** ilova Apple tomonidan notarize qilinmagan, birinchi ochishdan oldin Terminal'da bir marta:
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Termius Alternative.app"
+xattr -dr com.apple.quarantine "/Applications/Myterm.app"
 ```
 
 ## Android

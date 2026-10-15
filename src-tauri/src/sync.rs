@@ -485,7 +485,7 @@ impl GitHub<'_> {
 
     pub async fn create(&self, content: &str) -> anyhow::Result<String> {
         let body = json!({
-            "description": "Termius Alternative — encrypted sync vault (do not edit)",
+            "description": "Myterm — encrypted sync vault (do not edit)",
             "public": false,
             "files": { VAULT_FILE: { "content": content } }
         });

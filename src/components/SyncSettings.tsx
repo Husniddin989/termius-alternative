@@ -5,7 +5,7 @@ import type { SyncControl } from "../useSync";
 import { Field } from "./DetailsPanel";
 import { EyeIcon, EyeOffIcon, KeyIcon, LockIcon, RefreshIcon } from "./icons";
 
-const TOKEN_URL = "https://github.com/settings/tokens/new?scopes=gist&description=Termius%20Alternative%20sync";
+const TOKEN_URL = "https://github.com/settings/tokens/new?scopes=gist&description=Myterm%20sync";
 
 function ago(at: number) {
   const s = Math.max(0, Math.round((Date.now() - at) / 1000));

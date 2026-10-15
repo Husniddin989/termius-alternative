@@ -66,10 +66,10 @@ jobs:
           mkdir -p out
           b=src-tauri/target
           case "${{ matrix.name }}" in
-            macOS)   cp $b/universal-apple-darwin/release/bundle/dmg/*.dmg out/TermiusAlternative-macOS.dmg ;;
-            Windows) cp $b/release/bundle/nsis/*-setup.exe out/TermiusAlternative-Windows-Setup.exe ;;
-            Linux)   cp $b/release/bundle/appimage/*.AppImage out/TermiusAlternative-Linux.AppImage
-                     cp $b/release/bundle/deb/*.deb out/TermiusAlternative-Linux.deb ;;
+            macOS)   cp $b/universal-apple-darwin/release/bundle/dmg/*.dmg out/Myterm-macOS.dmg ;;
+            Windows) cp $b/release/bundle/nsis/*-setup.exe out/Myterm-Windows-Setup.exe ;;
+            Linux)   cp $b/release/bundle/appimage/*.AppImage out/Myterm-Linux.AppImage
+                     cp $b/release/bundle/deb/*.deb out/Myterm-Linux.deb ;;
           esac
           ls -la out
 
@@ -130,9 +130,9 @@ jobs:
           echo "$ANDROID_KEYSTORE_B64" | base64 -d > release.jks
           mkdir -p out
           "$tools/zipalign" -p 4 src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk aligned.apk
-          "$tools/apksigner" sign --ks release.jks --ks-pass env:ANDROID_KEYSTORE_PASSWORD --out out/TermiusAlternative-Android.apk aligned.apk
+          "$tools/apksigner" sign --ks release.jks --ks-pass env:ANDROID_KEYSTORE_PASSWORD --out out/Myterm-Android.apk aligned.apk
           rm release.jks
-          "$tools/apksigner" verify out/TermiusAlternative-Android.apk
+          "$tools/apksigner" verify out/Myterm-Android.apk
 
       - uses: actions/upload-artifact@v4
         if: env.HAS_KEY == 'true'
@@ -169,13 +169,13 @@ jobs:
 
           | System | File |
           |---|---|
-          | macOS (Apple Silicon + Intel) | TermiusAlternative-macOS.dmg |
-          | Windows 10/11 | TermiusAlternative-Windows-Setup.exe |
-          | Linux | TermiusAlternative-Linux.AppImage / .deb |
-          | Android | TermiusAlternative-Android.apk |
+          | macOS (Apple Silicon + Intel) | Myterm-macOS.dmg |
+          | Windows 10/11 | Myterm-Windows-Setup.exe |
+          | Linux | Myterm-Linux.AppImage / .deb |
+          | Android | Myterm-Android.apk |
 
           **macOS:** the app is not notarized yet. Before the first launch run once in Terminal:
-          \`xattr -dr com.apple.quarantine "/Applications/Termius Alternative.app"\`
+          \`xattr -dr com.apple.quarantine "/Applications/Myterm.app"\`
           NOTES
           sed -i 's/^          //' notes.md
-          gh release create "$tag" dist/* --title "Termius Alternative $tag" --notes-file notes.md --target "${{ github.sha }}" --latest
+          gh release create "$tag" dist/* --title "Myterm $tag" --notes-file notes.md --target "${{ github.sha }}" --latest
